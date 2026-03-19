@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔍 My Investigation Station</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --dino: #2d6a4f;
+    --dino-light: #52b788;
+    --dino-pale: #d8f3dc;
+    --ninjago: #e63946;
+    --ninjago-light: #ff6b6b;
+    --ninjago-pale: #ffe8e8;
+    --plane: #1d3557;
+    --plane-light: #457b9d;
+    --plane-pale: #e8f4fd;
+    --gold: #f4a261;
+    --cross-pale: #fff9e6;
+    --bg: #fffef9;
+    --text: #1a1a2e;
+    --shadow: 0 4px 20px rgba(0,0,0,0.08);
+    --r: 20px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 20px 80px;
+    max-width: 980px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  header {
+    text-align: center;
+    padding: 44px 32px;
+    background: linear-gradient(135deg, #1d3557 0%, #2d6a4f 50%, #e63946 100%);
+    border-radius: 28px;
+    color: white;
+    margin-bottom: 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '🦕✈️⚔️';
+    font-size: 90px;
+    position: absolute;
+    top: -16px; right: -8px;
+    opacity: 0.1;
+    transform: rotate(12deg);
+  }
+  header h1 { font-family: 'Fredoka One', cursive; font-size: 2.5em; margin-bottom: 6px; text-shadow: 0 2px 12px rgba(0,0,0,0.25); }
+  header p { font-size: 1.05em; opacity: 0.9; max-width: 560px; margin: 0 auto; font-weight: 600; }
+
+  /* ── SECTION HEADERS ── */
+  .section-header {
+    display: flex; align-items: center; gap: 14px;
+    margin: 50px 0 22px; padding-bottom: 10px; border-bottom: 3px solid;
+  }
+  .section-header .emoji { font-size: 2em; }
+  .section-header h2 { font-family: 'Fredoka One', cursive; font-size: 1.8em; }
+  .section-header.dino  { border-color: var(--dino);  color: var(--dino); }
+  .section-header.ninjago { border-color: var(--ninjago); color: var(--ninjago); }
+  .section-header.plane { border-color: var(--plane); color: var(--plane); }
+  .section-header.cross { border-color: var(--gold);  color: #b5451b; }
+  .section-header.share { border-color: #9b5de5; color: #6a0dad; }
+
+  /* ── CARDS GRID ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(275px, 1fr)); gap: 18px; }
+
+  .card {
+    border-radius: var(--r); padding: 22px;
+    box-shadow: var(--shadow); border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.18s, box-shadow 0.18s;
+    position: relative;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 10px 32px rgba(0,0,0,0.14); }
+  .card:focus { outline: 3px solid #f4a261; outline-offset: 2px; }
+
+  .card.dino    { background: var(--dino-pale);  border-color: var(--dino-light); }
+  .card.ninjago { background: var(--ninjago-pale); border-color: var(--ninjago-light); }
+  .card.plane   { background: var(--plane-pale);  border-color: var(--plane-light); }
+  .card.cross   { background: var(--cross-pale);  border-color: var(--gold); }
+
+  .card-label {
+    font-size: 0.7em; font-weight: 800; letter-spacing: 1.4px;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .card.dino    .card-label { color: var(--dino); }
+  .card.ninjago .card-label { color: var(--ninjago); }
+  .card.plane   .card-label { color: var(--plane); }
+  .card.cross   .card-label { color: #b5451b; }
+
+  .card h3 { font-size: 1.05em; font-weight: 900; margin-bottom: 7px; }
+  .card p  { font-size: 0.88em; color: #444; margin-bottom: 10px; }
+
+  .click-hint {
+    font-size: 0.75em; font-weight: 700; margin-top: 12px;
+    display: inline-block; padding: 4px 12px;
+    border-radius: 20px; background: rgba(255,255,255,0.65);
+    color: #555;
+  }
+
+  /* ── MODAL OVERLAY ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(10,15,30,0.55);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; animation: fadein 0.2s ease; }
+
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+  .modal {
+    background: white;
+    border-radius: 24px;
+    max-width: 640px; width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+    animation: slidein 0.22s ease;
+    position: relative;
+  }
+  @keyframes slidein { from { transform: translateY(18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .modal-top {
+    padding: 28px 28px 20px;
+    border-radius: 24px 24px 0 0;
+    position: relative;
+  }
+  .modal-top.dino    { background: var(--dino-pale); }
+  .modal-top.ninjago { background: var(--ninjago-pale); }
+  .modal-top.plane   { background: var(--plane-pale); }
+  .modal-top.cross   { background: var(--cross-pale); }
+
+  .modal-close {
+    position: absolute; top: 16px; right: 18px;
+    background: rgba(255,255,255,0.8);
+    border: none; border-radius: 50%;
+    width: 36px; height: 36px; font-size: 1.2em;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transition: background 0.15s;
+  }
+  .modal-close:hover { background: white; }
+
+  .modal-category {
+    font-size: 0.72em; font-weight: 800; letter-spacing: 1.4px;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .modal-top.dino    .modal-category { color: var(--dino); }
+  .modal-top.ninjago .modal-category { color: var(--ninjago); }
+  .modal-top.plane   .modal-category { color: var(--plane); }
+  .modal-top.cross   .modal-category { color: #b5451b; }
+
+  .modal-title {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.7em; line-height: 1.2; margin-bottom: 8px;
+    padding-right: 40px;
+  }
+  .modal-desc { font-size: 0.92em; color: #444; }
+
+  .modal-body { padding: 24px 28px 28px; }
+
+  .steps-heading {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.15em; margin-bottom: 16px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Step list */
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+
+  .step {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: #f8f8f8; border-radius: 14px; padding: 14px 16px;
+    border-left: 4px solid #ddd;
+    transition: background 0.15s;
+  }
+  .step.dino-step    { border-color: var(--dino-light); }
+  .step.ninjago-step { border-color: var(--ninjago-light); }
+  .step.plane-step   { border-color: var(--plane-light); }
+  .step.cross-step   { border-color: var(--gold); }
+
+  .step-num {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.3em; min-width: 32px; line-height: 1;
+    margin-top: 2px;
+  }
+  .step.dino-step    .step-num { color: var(--dino); }
+  .step.ninjago-step .step-num { color: var(--ninjago); }
+  .step.plane-step   .step-num { color: var(--plane); }
+  .step.cross-step   .step-num { color: #b5451b; }
+
+  .step-text strong { display: block; font-weight: 800; font-size: 0.95em; margin-bottom: 2px; }
+  .step-text span   { font-size: 0.88em; color: #555; }
+
+  /* Finish box */
+  .finish-box {
+    margin-top: 20px; padding: 14px 18px;
+    border-radius: 14px; font-size: 0.9em; font-weight: 700;
+    display: flex; gap: 10px; align-items: center;
+  }
+  .finish-box.dino    { background: rgba(82,183,136,0.18); color: var(--dino); }
+  .finish-box.ninjago { background: rgba(230,57,70,0.1);  color: #b71c1c; }
+  .finish-box.plane   { background: rgba(69,123,157,0.13); color: var(--plane); }
+  .finish-box.cross   { background: rgba(244,162,97,0.2);  color: #b5451b; }
+  .finish-box .finish-icon { font-size: 1.5em; flex-shrink: 0; }
+
+  /* ── SHARING SECTION ── */
+  .tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 14px; margin-top: 18px;
+  }
+  .tip-card {
+    background: white; border-radius: 14px; padding: 16px;
+    text-align: center; box-shadow: var(--shadow); border: 2px solid #eee;
+  }
+  .tip-icon { font-size: 1.9em; margin-bottom: 6px; }
+  .tip-card h4 { font-weight: 800; font-size: 0.88em; margin-bottom: 3px; }
+  .tip-card p  { font-size: 0.78em; color: #666; }
+
+  /* ── TEACHER NOTE ── */
+  .teacher-note {
+    background: linear-gradient(135deg, #1d3557, #2d6a4f);
+    color: white; border-radius: 20px; padding: 30px; margin-top: 56px;
+  }
+  .teacher-note h3 {
+    font-family: 'Fredoka One', cursive; font-size: 1.4em;
+    margin-bottom: 14px; color: #a8e6c3;
+  }
+  .teacher-note ul { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .teacher-note li { font-size: 0.88em; padding-left: 18px; position: relative; }
+  .teacher-note li::before { content: '✓'; position: absolute; left: 0; color: #52b788; font-weight: 800; }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.8em; }
+    .cards { grid-template-columns: 1fr; }
+    .teacher-note ul { grid-template-columns: 1fr; }
+    .tips-grid { grid-template-columns: 1fr 1fr; }
+    .modal-title { font-size: 1.3em; }
+    .modal-body { padding: 18px 18px 22px; }
+    .modal-top { padding: 20px 18px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔍 My Investigation Station</h1>
+  <p>Pick an investigation, tap to see your steps, then go and create something amazing!</p>
+</header>
+
+<!-- ═══════════════════════════════════════ DINOSAURS ═══ -->
+<div class="section-header dino">
+  <span class="emoji">🦕</span>
+  <h2>Dinosaur Investigations</h2>
+</div>
+<div class="cards">
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino1')">
+    <div class="card-label">🔬 Science</div>
+    <h3>Which dinosaur was the best hunter?</h3>
+    <p>Compare predator dinosaurs and decide who was the ultimate champion — using evidence!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino2')">
+    <div class="card-label">📖 Expert Guide</div>
+    <h3>Write a Dinosaur Field Guide</h3>
+    <p>Create your own expert guide to 5 of your favourite dinosaurs.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino3')">
+    <div class="card-label">🎙️ Podcast</div>
+    <h3>Dinosaur Expert Podcast</h3>
+    <p>Record yourself as a dinosaur expert being interviewed. You know more than most adults!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino4')">
+    <div class="card-label">📐 Maths</div>
+    <h3>How BIG were they really?</h3>
+    <p>Measure out real dinosaur sizes and photograph yourself next to them for scale!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino5')">
+    <div class="card-label">🗺️ Mapping</div>
+    <h3>Dino World Map</h3>
+    <p>Research where fossils have been found and map the dinosaur world.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino6')">
+    <div class="card-label">⏳ Timeline</div>
+    <h3>Dinosaur Timeline of Earth</h3>
+    <p>Create a giant timeline through the Triassic, Jurassic and Cretaceous periods.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino7')">
+    <div class="card-label">🎥 Documentary</div>
+    <h3>Film Your Own Dino Documentary</h3>
+    <p>Narrate your own 2–3 minute documentary, David Attenborough style!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card dino" tabindex="0" onclick="openModal('dino8')">
+    <div class="card-label">🧠 Quiz Maker</div>
+    <h3>Create a Dinosaur Quiz</h3>
+    <p>Write 10 questions and challenge the teacher or class — bet you stump them!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ NINJAGO ════ -->
+<div class="section-header ninjago">
+  <span class="emoji">⚔️</span>
+  <h2>Ninjago Investigations</h2>
+</div>
+<div class="cards">
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj1')">
+    <div class="card-label">✍️ Creative Writing</div>
+    <h3>Write a New Ninjago Episode</h3>
+    <p>Create a brand new episode — who is the villain? What elemental powers appear?</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj2')">
+    <div class="card-label">🗺️ World Building</div>
+    <h3>Map the Ninjago World</h3>
+    <p>Design a detailed map of the whole Ninjago universe — plus your own new locations!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj3')">
+    <div class="card-label">🔬 Science Connection</div>
+    <h3>The Real Science of Elements</h3>
+    <p>Each ninja has an element. Research the REAL science behind each one.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj4')">
+    <div class="card-label">🎨 Character Design</div>
+    <h3>Design Your Own Ninja</h3>
+    <p>Invent a brand new ninja — element, powers, backstory, outfit and weapon!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj5')">
+    <div class="card-label">🎙️ Review Show</div>
+    <h3>Be a Ninjago Reviewer</h3>
+    <p>Record your review of the new Netflix season. Rate it out of 10 with reasons!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj6')">
+    <div class="card-label">📚 Real History</div>
+    <h3>Ninjago's Real-World Inspirations</h3>
+    <p>Research real ninjas — how much of Ninjago is actually true?</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card ninjago" tabindex="0" onclick="openModal('ninj7')">
+    <div class="card-label">🎭 Storyboard</div>
+    <h3>Storyboard an Action Scene</h3>
+    <p>Draw a battle or action scene panel by panel, like a comic strip.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ PLANES ═════ -->
+<div class="section-header plane">
+  <span class="emoji">✈️</span>
+  <h2>Paper Plane Investigations</h2>
+</div>
+<div class="cards">
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan1')">
+    <div class="card-label">🔬 Experiment</div>
+    <h3>Which Design Flies Furthest?</h3>
+    <p>Test 3 designs 5 times each, measure the results, and find the champion!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan2')">
+    <div class="card-label">🏆 World Records</div>
+    <h3>Paper Plane World Records</h3>
+    <p>Research the world records — then try to set your own class record!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan3')">
+    <div class="card-label">🌬️ Aerodynamics</div>
+    <h3>How Does a Plane Actually Fly?</h3>
+    <p>Research the 4 forces of flight and draw a diagram to explain them.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan4')">
+    <div class="card-label">📐 Engineering</div>
+    <h3>Invent a New Paper Plane</h3>
+    <p>Create your own original design, test it, and write instructions so others can make it!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan5')">
+    <div class="card-label">📊 Variables</div>
+    <h3>Does Paper Weight Matter?</h3>
+    <p>Fold the same design with different papers. Does weight change how far it flies?</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan6')">
+    <div class="card-label">🎓 Tutorial</div>
+    <h3>Teach the Class to Fold a Plane</h3>
+    <p>Write instructions AND film yourself making your best design step by step.</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card plane" tabindex="0" onclick="openModal('plan7')">
+    <div class="card-label">🏗️ Challenge</div>
+    <h3>Design a Plane That Carries Cargo</h3>
+    <p>Can your plane carry a paper clip? Test and modify until it works!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ CROSS ══════ -->
+<div class="section-header cross">
+  <span class="emoji">🌟</span>
+  <h2>Cross-Topic Mega Investigations</h2>
+</div>
+<div class="cards">
+
+  <div class="card cross" tabindex="0" onclick="openModal('cros1')">
+    <div class="card-label">🦕✈️ Dino + Planes</div>
+    <h3>Could a Pterodactyl Outfly Your Plane?</h3>
+    <p>Compare real pterosaur flight data with your best paper plane. Who wins?</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card cross" tabindex="0" onclick="openModal('cros2')">
+    <div class="card-label">⚔️✈️ Ninjago + Planes</div>
+    <h3>Design a Ninja Glider</h3>
+    <p>Design, fold and test a stealthy ninja glider — then write the mission story!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card cross" tabindex="0" onclick="openModal('cros3')">
+    <div class="card-label">🦕⚔️ Dino + Ninjago</div>
+    <h3>Ninja vs Dinosaur — Who Wins?</h3>
+    <p>Use REAL dinosaur facts to write a debate or battle story. Be scientific!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card cross" tabindex="0" onclick="openModal('cros4')">
+    <div class="card-label">🌟 All Three!</div>
+    <h3>My Ultimate Expert Presentation</h3>
+    <p>Choose ONE thing you know better than almost anyone and teach the class!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+  <div class="card cross" tabindex="0" onclick="openModal('cros5')">
+    <div class="card-label">📰 All Three!</div>
+    <h3>The Dino-Ninja-Planes Newspaper</h3>
+    <p>Write a one-page newspaper with three articles — one per interest!</p>
+    <span class="click-hint">👆 Tap to see your steps</span>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════ SHARING ═══ -->
+<div class="section-header share">
+  <span class="emoji">📤</span>
+  <h2>Ways to Share Your Work</h2>
+</div>
+<div class="tips-grid">
+  <div class="tip-card"><div class="tip-icon">🎙️</div><h4>Audio Recording</h4><p>Record yourself using the microphone and play it to the class.</p></div>
+  <div class="tip-card"><div class="tip-icon">🎥</div><h4>Video Documentary</h4><p>Film on the iPad — use props, drawings or just talk to camera.</p></div>
+  <div class="tip-card"><div class="tip-icon">🖼️</div><h4>Photo Essay</h4><p>Photograph your work step by step and present the images in order.</p></div>
+  <div class="tip-card"><div class="tip-icon">📝</div><h4>Written Report</h4><p>Type or hand-write a report, guide or story to share.</p></div>
+  <div class="tip-card"><div class="tip-icon">🗣️</div><h4>Live Demo</h4><p>Show the class in person — fold a plane, quiz them, be the teacher!</p></div>
+  <div class="tip-card"><div class="tip-icon">🖥️</div><h4>Google Slides</h4><p>Use the Chromebook to build a visual presentation to show up front.</p></div>
+  <div class="tip-card"><div class="tip-icon">🎨</div><h4>Poster / Display</h4><p>Create an illustrated poster to hang in the classroom.</p></div>
+  <div class="tip-card"><div class="tip-icon">📖</div><h4>Mini Book</h4><p>Fold paper into a little book and fill it with facts and drawings.</p></div>
+</div>
+
+<!-- ═══════════════════════════════════════ TEACHER ═══ -->
+<div class="teacher-note">
+  <h3>🍎 Educator Setup Notes</h3>
+  <ul>
+    <li>Let him freely choose his investigation — autonomy reduces anxiety</li>
+    <li>Set a gentle deadline: "share when you're ready"</li>
+    <li>Praise the process, not just the product</li>
+    <li>Allow movement breaks between work sessions</li>
+    <li>Recording removes the pressure of live speaking — great option</li>
+    <li>Pre-load safe Chromebook bookmarks for each topic</li>
+    <li>Dinosaur expertise is a superpower — lean into it!</li>
+    <li>Quiz Maker puts him in the expert/teacher role — powerful!</li>
+    <li>Step-by-step modal reduces the overwhelm of open tasks</li>
+    <li>Celebrate presenting to the class as a special event</li>
+    <li>Consider a "wonder wall" for posting new questions to investigate</li>
+    <li>Cross-topic projects work well for extended engagement</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ MODAL ═══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeIfBackground(event)">
+  <div class="modal" id="modal" role="dialog" aria-modal="true">
+    <div class="modal-top" id="modalTop">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
+      <div class="modal-category" id="modalCategory"></div>
+      <div class="modal-title" id="modalTitle"></div>
+      <div class="modal-desc"  id="modalDesc"></div>
+    </div>
+    <div class="modal-body">
+      <div class="steps-heading">🪜 Your Steps</div>
+      <ul class="steps" id="modalSteps"></ul>
+      <div class="finish-box" id="modalFinish"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+const investigations = {
+
+  /* ════ DINOSAURS ════ */
+  dino1: {
+    theme: 'dino', category: '🔬 Science',
+    title: 'Which Dinosaur Was the Best Hunter?',
+    desc: 'Use your expert knowledge to compare predator dinosaurs and make a scientific argument about who wins!',
+    steps: [
+      { head: 'Pick your dinosaurs', body: 'Choose 3–5 predator dinosaurs you want to compare. Write their names down.' },
+      { head: 'Research each one', body: 'For each dinosaur, find out: How fast were they? How big? What weapons (teeth/claws) did they have? How did they hunt?' },
+      { head: 'Make a comparison chart', body: 'Draw a table with the dinosaurs across the top and the facts down the side. Fill it in so you can see the differences.' },
+      { head: 'Make your decision', body: 'Look at your chart. Which dinosaur scores highest? Write your verdict — "The best hunter was ___ because…" and give at least 3 reasons.' },
+      { head: 'Add drawings or pictures', body: 'Draw your winner (or print a picture). Add labels showing their hunting features.' },
+      { head: 'Record your verdict', body: 'Use the microphone or iPad to record yourself announcing your winner and explaining why — like a sports commentator!' },
+    ],
+    finish: '📤 Share: Comparison chart + recorded verdict'
+  },
+
+  dino2: {
+    theme: 'dino', category: '📖 Expert Guide',
+    title: 'Write a Dinosaur Field Guide',
+    desc: 'You are the expert — create a guide that others could use to learn about your favourite dinosaurs.',
+    steps: [
+      { head: 'Choose your 5 dinosaurs', body: 'Pick 5 dinosaurs you know really well or want to learn more about. Write the list.' },
+      { head: 'Create a page for each dinosaur', body: 'For each one, write: Name, When it lived, What it ate, How big it was, One AMAZING fact that most people don\'t know.' },
+      { head: 'Add a drawing or image', body: 'Draw each dinosaur (or print a picture). Try to show something interesting — like their size compared to a human.' },
+      { head: 'Write an introduction', body: 'Write a short intro page that explains what the guide is about and why you made it. Sign it as the author!' },
+      { head: 'Put it all together', body: 'Arrange your pages in order. You could fold them into a mini book, or make slides on the Chromebook.' },
+      { head: 'Design a cover', body: 'Make a cover page with a great title and your name as the author. Make it eye-catching!' },
+    ],
+    finish: '📤 Share: Mini book or printed guide to show the class'
+  },
+
+  dino3: {
+    theme: 'dino', category: '🎙️ Podcast',
+    title: 'Dinosaur Expert Podcast',
+    desc: 'You know more about dinosaurs than most adults — now it\'s time to share that knowledge in a podcast!',
+    steps: [
+      { head: 'Plan your 5 interview questions', body: 'Write down 5 questions someone might ask a dinosaur expert. Make them interesting — not just easy ones!' },
+      { head: 'Write your answers', body: 'Answer each question using your knowledge. Include specific facts, dinosaur names, and things that might surprise people.' },
+      { head: 'Practise saying it out loud', body: 'Read through your questions and answers once or twice so you feel comfortable. You don\'t need to memorise it — just be familiar with it.' },
+      { head: 'Set up your recording space', body: 'Find a quiet spot. Get the microphone ready. You can record yourself doing both the interviewer and expert voices, or have a friend ask the questions!' },
+      { head: 'Record your podcast', body: 'Press record and go! Don\'t worry if you need to pause or start a bit again. Speak clearly and with confidence — you are the expert.' },
+      { head: 'Listen back and decide', body: 'Play it back. Are you happy with it? If you want to redo any part, that\'s totally fine.' },
+    ],
+    finish: '📤 Share: Play your audio recording to the class'
+  },
+
+  dino4: {
+    theme: 'dino', category: '📐 Maths',
+    title: 'How BIG Were They Really?',
+    desc: 'Bring dinosaurs to life by showing their ACTUAL size — this one might shock people!',
+    steps: [
+      { head: 'Research the sizes', body: 'Look up the length of 5 different dinosaurs. Write down each measurement in metres. Try to pick a variety — tiny ones and huge ones!' },
+      { head: 'Go outside with a tape measure', body: 'Take a tape measure (or a long piece of string) to the playground or oval. Mark out exactly how long each dinosaur was using chalk or sticks.' },
+      { head: 'Stand at the start', body: 'Stand at one end of each measurement. Have someone take a photo of you at the start and end to show the scale.' },
+      { head: 'Create your photo display', body: 'On the Chromebook, arrange your photos. Add a label to each one showing: the dinosaur\'s name and its length.' },
+      { head: 'Add comparison facts', body: 'For each dinosaur, add a comparison — like "This is as long as 3 cars" or "This is longer than our classroom." Work those out!' },
+      { head: 'Write a surprising fact for each', body: 'Add one fact that will make people say "WOW!" next to each dinosaur photo.' },
+    ],
+    finish: '📤 Share: Photo slideshow presented on the Chromebook'
+  },
+
+  dino5: {
+    theme: 'dino', category: '🗺️ Mapping',
+    title: 'Dino World Map',
+    desc: 'Discover where dinosaurs actually lived and find patterns in the fossil record!',
+    steps: [
+      { head: 'Get a world map', body: 'Print a blank world map or draw one. Make it large enough to add labels and stickers.' },
+      { head: 'Research fossil locations', body: 'Look up where fossils have been found for 8–10 different dinosaurs. Write: dinosaur name → country it was found in.' },
+      { head: 'Mark the locations', body: 'Draw a small symbol or write the name of each dinosaur on the map where it was found. Use different colours for different types.' },
+      { head: 'Add a legend', body: 'Create a key/legend at the side of the map explaining what each colour or symbol means.' },
+      { head: 'Look for patterns', body: 'Study your map. Are most fossils in certain continents? Why might that be? Write down 2–3 observations.' },
+      { head: 'Write your conclusion', body: 'Write a short paragraph explaining what you discovered about where dinosaurs lived around the world.' },
+    ],
+    finish: '📤 Share: Annotated map poster to display in the classroom'
+  },
+
+  dino6: {
+    theme: 'dino', category: '⏳ Timeline',
+    title: 'Dinosaur Timeline of Earth',
+    desc: 'Create a visual timeline that shows just how long ago dinosaurs lived — the numbers are mind-blowing!',
+    steps: [
+      { head: 'Research the three periods', body: 'Look up the Triassic, Jurassic and Cretaceous periods. When did each one start and end? Write down the dates in millions of years.' },
+      { head: 'Make your timeline base', body: 'Get a long piece of paper (tape A4 sheets together). Draw a long horizontal line. Mark the start (250 million years ago) and end (66 million years ago).' },
+      { head: 'Divide it into the three periods', body: 'Mark where each period starts and ends on the line. Label each period clearly with its name and dates.' },
+      { head: 'Add the dinosaurs', body: 'Place at least 8 dinosaurs on the timeline. Draw or write their name where they lived. Try to include at least 2 from each period.' },
+      { head: 'Add Earth events', body: 'Add other important things that happened on Earth — like when the first flowers appeared, or the asteroid that ended the dinosaurs.' },
+      { head: 'Decorate and display', body: 'Add colour and drawings to make it look amazing. Include a title at the top.' },
+    ],
+    finish: '📤 Share: Large paper timeline displayed on the classroom wall'
+  },
+
+  dino7: {
+    theme: 'dino', category: '🎥 Documentary',
+    title: 'Film Your Own Dino Documentary',
+    desc: 'Be the narrator and filmmaker — create a documentary just like you see on TV!',
+    steps: [
+      { head: 'Choose your topic', body: 'Decide what your documentary is about — maybe one dinosaur in detail, or "a day in the life of a T-Rex," or how dinosaurs became extinct.' },
+      { head: 'Write your script', body: 'Write what you will say out loud. Keep it to about 2–3 minutes. Include real facts and try to make it exciting and interesting.' },
+      { head: 'Gather your props', body: 'Collect things to show the camera: drawings you\'ve made, printed pictures, toy dinosaurs, objects for scale. These will make it more interesting to watch.' },
+      { head: 'Practise your narration', body: 'Read your script a couple of times. Try to sound calm and knowledgeable — like a nature documentary narrator!' },
+      { head: 'Film it on the iPad', body: 'Set the iPad up (lean it against something, or have someone hold it). Press record and present your documentary, showing your props as you go.' },
+      { head: 'Watch it back', body: 'Play it back. If you want to redo any section, that\'s totally fine — even professional filmmakers do lots of takes!' },
+    ],
+    finish: '📤 Share: Screen your documentary to the class'
+  },
+
+  dino8: {
+    theme: 'dino', category: '🧠 Quiz Maker',
+    title: 'Create a Dinosaur Quiz',
+    desc: 'Use your expert knowledge to create a quiz that even teachers might struggle with!',
+    steps: [
+      { head: 'Plan your 10 questions', body: 'Decide on 10 questions. Try to have a mix: 3 easy, 4 medium, 3 hard. Write them all out on rough paper first.' },
+      { head: 'Write the questions clearly', body: 'Write each question so it is very clear. For each question, decide: is it a Yes/No, a multiple choice (A, B, C) or a write-the-answer question?' },
+      { head: 'Write the answer sheet', body: 'Write a separate answer sheet with all 10 correct answers. Add one fun fact for each answer if you can!' },
+      { head: 'Make it look great', body: 'Write it out neatly on clean paper, or type it up on the Chromebook. Add a title, some drawings, and your name.' },
+      { head: 'Test it on someone first', body: 'Try the quiz on a teacher or friend before the big event. Check they can understand the questions clearly.' },
+      { head: 'Host the quiz!', body: 'Decide how you\'ll run it — read questions aloud to the class, or give everyone a printed copy. You are the quizmaster!' },
+    ],
+    finish: '📤 Share: Host the quiz live with the class'
+  },
+
+  /* ════ NINJAGO ════ */
+  ninj1: {
+    theme: 'ninjago', category: '✍️ Creative Writing',
+    title: 'Write a New Ninjago Episode',
+    desc: 'You know the Ninjago world — now create your own brand new adventure in it!',
+    steps: [
+      { head: 'Plan your episode', body: 'Decide: Who is the villain? What do they want? Which ninja will defeat them? What is their element or special power?' },
+      { head: 'Map out the story', body: 'Write a simple plan: Beginning (the problem appears) → Middle (the ninja try to solve it — and struggle!) → End (how they win).' },
+      { head: 'Write the story or script', body: 'Write it as a story, OR as a script with character names and dialogue like a TV show. Either works! Aim for at least 1 page.' },
+      { head: 'Add action!', body: 'Go back through and add exciting action words, descriptions of the battle, and feelings of the characters. Make the reader feel excited!' },
+      { head: 'Give your episode a title', body: 'Every Ninjago episode has a great title. What will yours be? Write it at the top like a real episode title.' },
+      { head: 'Read it out or record it', body: 'You could read your episode aloud to the class, record yourself reading it dramatically, or act out parts of it.' },
+    ],
+    finish: '📤 Share: Read aloud, perform, or record a dramatic reading'
+  },
+
+  ninj2: {
+    theme: 'ninjago', category: '🗺️ World Building',
+    title: 'Map the Ninjago World',
+    desc: 'Become the official cartographer of the Ninjago universe!',
+    steps: [
+      { head: 'List all the locations you know', body: 'Write down every Ninjago location you can think of from the show. Don\'t look anything up yet — use your memory first!' },
+      { head: 'Research any you\'ve forgotten', body: 'Check what other key locations appear in the new season and earlier ones. Add them to your list.' },
+      { head: 'Sketch a rough layout first', body: 'On rough paper, sketch roughly where each place might be. Think about which are close to each other in the show.' },
+      { head: 'Draw your final map', body: 'On a bigger, cleaner piece of paper, draw the full map. Include land, sea, mountains, cities. Make it look like a real fantasy map.' },
+      { head: 'Label everything', body: 'Write the name of each location clearly on the map. Add a small picture or symbol for each place.' },
+      { head: 'Invent your own locations', body: 'Add at least 2 new locations you have invented. Write a sentence describing what is there and why it\'s important.' },
+    ],
+    finish: '📤 Share: Large illustrated map poster displayed in class'
+  },
+
+  ninj3: {
+    theme: 'ninjago', category: '🔬 Science Connection',
+    title: 'The Real Science of Elements',
+    desc: 'Find out what real science is hiding inside the Ninjago elements!',
+    steps: [
+      { head: 'List all the Ninjago elements', body: 'Write down every element from the show — fire, water, earth, lightning, ice, and any others from the new season.' },
+      { head: 'Pick 4 to research', body: 'Choose 4 elements to investigate deeply. Try to pick interesting ones with cool science behind them.' },
+      { head: 'Research the real science', body: 'For each element: What actually causes it in real life? What temperature is fire? How does lightning form? Where is earth\'s energy found?' },
+      { head: 'Create a fact sheet for each element', body: 'For each of your 4 elements, write: the element name, the Ninjago ninja who uses it, and 3–4 real science facts about it.' },
+      { head: 'Add a diagram', body: 'Draw a diagram for at least one element — like how lightning is created in a storm cloud, or how fire needs oxygen to burn.' },
+      { head: 'Record an explanation', body: 'Pick your favourite element and record a short video or audio clip explaining the real science behind it. Pretend you\'re teaching someone.' },
+    ],
+    finish: '📤 Share: Element fact sheets + one recorded explanation'
+  },
+
+  ninj4: {
+    theme: 'ninjago', category: '🎨 Character Design',
+    title: 'Design Your Own Ninja',
+    desc: 'Create a brand new ninja who could join the team — make them totally original!',
+    steps: [
+      { head: 'Decide on their element', body: 'What element does your ninja control? It can be one from the show, or something completely new — like sound, metal, time, or shadow!' },
+      { head: 'Create their backstory', body: 'Write answers to: Where did they grow up? How did they discover their powers? Why did they join the ninja team? What is their biggest fear?' },
+      { head: 'Design their weapon and special move', body: 'Every ninja has a special weapon and signature move. Create both for your ninja. Give the move an epic name!' },
+      { head: 'Design their outfit', body: 'Draw your ninja in their full outfit. Use colours that match their element. Add any special armour, tools or equipment they carry.' },
+      { head: 'Write their character profile', body: 'Create an official character profile sheet: Name, Element, Weapon, Special Move, Strengths, Weaknesses, and a quote they might say.' },
+      { head: 'Present your ninja', body: 'Show your drawing and profile to the class — or record a character reveal video as if it\'s a real show announcement!' },
+    ],
+    finish: '📤 Share: Character sheet (drawing + written profile) presented to class'
+  },
+
+  ninj5: {
+    theme: 'ninjago', category: '🎙️ Review Show',
+    title: 'Be a Ninjago Reviewer',
+    desc: 'You\'ve seen the new season — now share your expert opinion!',
+    steps: [
+      { head: 'Think about what you watched', body: 'Without watching again yet, write down everything you remember: characters, plot, best moments, any confusing parts.' },
+      { head: 'Plan your review structure', body: 'Decide what you\'ll cover: Summary (what happened), Highlights (best bits), Lowlights (anything you didn\'t like), Rating out of 10.' },
+      { head: 'Write your review notes', body: 'Write bullet points for each section. You don\'t need full sentences yet — just notes you can speak from.' },
+      { head: 'Decide: video or audio?', body: 'Will you film yourself on the iPad, or just record audio with the microphone? Either is great — pick what feels comfortable.' },
+      { head: 'Record your review', body: 'Press record and talk through your review naturally using your notes. Try to be enthusiastic — you\'re a fan reviewer!' },
+      { head: 'Give your rating and recommendation', body: 'End with: your score out of 10, AND who you would recommend this season to (e.g. "anyone who loves action and cool villains").' },
+    ],
+    finish: '📤 Share: Video or audio review played to the class'
+  },
+
+  ninj6: {
+    theme: 'ninjago', category: '📚 Real History',
+    title: 'Ninjago\'s Real-World Inspirations',
+    desc: 'Discover how much of Ninjago is actually based on real Japanese history and culture!',
+    steps: [
+      { head: 'Research real ninjas', body: 'Look up: When did real ninjas live? What country were they from? What was their actual job? Were they good guys or bad guys?' },
+      { head: 'Research real ninja skills', body: 'Find out: What skills did real ninjas train in? What weapons did they use? How did they move secretly? Was any of it similar to Ninjago?' },
+      { head: 'Research Japanese culture in Ninjago', body: 'Look for: Japanese words used in the show, traditional Japanese buildings and clothing, and any real martial arts shown.' },
+      { head: 'Create a comparison chart', body: 'Make two columns: "Real Ninjas" and "Ninjago Ninjas." Fill in the rows with: Skills, Weapons, Home, Purpose, Powers.' },
+      { head: 'Decide: fact or fiction?', body: 'For each row, mark whether Ninjago is Realistic ✓ or Very Made Up ✗. Write a sentence explaining the biggest difference you found.' },
+      { head: 'Write your conclusion', body: 'Write a paragraph answering: "How much of Ninjago is based on real history?" Use evidence from your research.' },
+    ],
+    finish: '📤 Share: Comparison chart + written conclusion'
+  },
+
+  ninj7: {
+    theme: 'ninjago', category: '🎭 Storyboard',
+    title: 'Storyboard an Action Scene',
+    desc: 'Think like a filmmaker and plan out a Ninjago battle scene panel by panel!',
+    steps: [
+      { head: 'Choose your scene', body: 'Pick a battle or action scene — from the new season, an older one, or one you\'ve invented. Write a one-sentence description of what happens.' },
+      { head: 'Plan your panels', body: 'Decide on 6–8 panels (boxes) that will tell the story. Think about: What does the reader see first? How does it build to the most exciting moment?' },
+      { head: 'Draw your panel grid', body: 'Rule up your panels on paper — 6–8 boxes, like a comic. Each box should be big enough to draw in.' },
+      { head: 'Draw each panel', body: 'Fill in each panel. You don\'t need to be a perfect artist — action lines, simple figures, and clear movement all work great in comics.' },
+      { head: 'Add speech bubbles and sound effects', body: 'What do the characters say? Add speech bubbles. Add sound effects in big bold letters — CRASH! WHOOSH! THWACK!' },
+      { head: 'Add a title', body: 'Give your storyboard an episode title at the top, just like a real Ninjago episode.' },
+    ],
+    finish: '📤 Share: Photograph and display your storyboard'
+  },
+
+  /* ════ PAPER PLANES ════ */
+  plan1: {
+    theme: 'plane', category: '🔬 Science Experiment',
+    title: 'Which Design Flies Furthest?',
+    desc: 'Run a proper scientific experiment to find the champion paper plane design!',
+    steps: [
+      { head: 'Choose your 3 designs', body: 'Pick 3 different paper plane designs to test. You could use designs you already know, or find new ones. Fold one of each.' },
+      { head: 'Set up your testing area', body: 'Find an open space — hallway or oval. Mark a throwing line with tape or chalk. Always throw from the same spot.' },
+      { head: 'Make a results table', body: 'Draw a table: Design name across the top, Throws 1–5 down the side, and a row for the Average at the bottom.' },
+      { head: 'Test each plane 5 times', body: 'Throw each plane 5 times and measure the distance each time with a tape measure. Record every result in your table.' },
+      { head: 'Calculate the averages', body: 'Add up all 5 results for each plane and divide by 5. This gives the average. Which plane has the highest average? That\'s the winner!' },
+      { head: 'Write your conclusion', body: 'Write: "My experiment showed that ___ flew furthest. I think this is because…" Try to explain the science behind why it won.' },
+    ],
+    finish: '📤 Share: Data table + bar graph + video of the experiment in action'
+  },
+
+  plan2: {
+    theme: 'plane', category: '🏆 World Records',
+    title: 'Paper Plane World Records',
+    desc: 'Discover who holds the world records and what made their planes so extraordinary!',
+    steps: [
+      { head: 'Research the records', body: 'Look up: the world record for longest distance, longest time in the air, and most accurate throw. Who holds each record? When was it set?' },
+      { head: 'Find out about the planes', body: 'What designs did they use? Were they traditional folds or special designs? Look for images or descriptions.' },
+      { head: 'Write a report on each record', body: 'For each of the 3 records: write the record holder\'s name, the distance/time, when and where it happened, and one interesting fact.' },
+      { head: 'Analyse what made them special', body: 'What do these record-breaking planes have in common? Write down 2–3 features that seem to help a plane fly further or longer.' },
+      { head: 'Set up your own class attempt', body: 'Choose one of the records to attempt — longest distance is the easiest. Make your best plane, measure carefully, and record your result.' },
+      { head: 'Compare and reflect', body: 'How did your attempt compare to the world record? Write about what you\'d need to do differently to get closer to it.' },
+    ],
+    finish: '📤 Share: Written report + class record attempt with results'
+  },
+
+  plan3: {
+    theme: 'plane', category: '🌬️ Aerodynamics',
+    title: 'How Does a Plane Actually Fly?',
+    desc: 'Discover the real science of flight and understand why some planes soar and others nosedive!',
+    steps: [
+      { head: 'Research the 4 forces of flight', body: 'Look up: Lift, Drag, Thrust, and Weight. Write a simple definition of each in your own words.' },
+      { head: 'Understand what each force does', body: 'For each force: Is it pushing up, down, forward or backward? Which forces work together and which fight against each other?' },
+      { head: 'Draw your diagram', body: 'Draw a paper plane (side view). Draw 4 arrows showing each force — make sure they point in the right direction. Label each arrow with the force name.' },
+      { head: 'Add colour and explain each force', body: 'Use a different colour for each force arrow. Write a sentence next to each one explaining what it does to your paper plane.' },
+      { head: 'Connect it to paper planes specifically', body: 'For a paper plane: What creates the thrust? What creates the lift? Write a short paragraph explaining how your throw gets the plane flying.' },
+      { head: 'Record an explanation', body: 'Hold up your diagram and record yourself explaining each force on camera. Pretend you\'re teaching someone who has never heard of aerodynamics.' },
+    ],
+    finish: '📤 Share: Diagram poster + recorded video explanation'
+  },
+
+  plan4: {
+    theme: 'plane', category: '📐 Design Engineering',
+    title: 'Invent a New Paper Plane',
+    desc: 'Go beyond existing designs — create something totally original and make it repeatable!',
+    steps: [
+      { head: 'Brainstorm your design ideas', body: 'Think about: What shape do you want? Wide wings? Narrow? Pointy nose? Folded tail? Sketch 2–3 rough ideas before you start folding.' },
+      { head: 'Fold your first prototype', body: 'Make your first attempt at your design. Don\'t worry if it\'s not perfect — this is just a starting point.' },
+      { head: 'Test and observe', body: 'Throw it several times. Watch carefully: Does it nose-dive? Veer left? Go straight? Land smoothly? Write down what you notice.' },
+      { head: 'Improve it', body: 'Based on what you observed, make one change at a time. Try: bending the wings slightly, adjusting the nose, adding a fold to the tail. Test after each change.' },
+      { head: 'Name your plane', body: 'Give your invention an official name! Write it on the plane (lightly in pencil).' },
+      { head: 'Write folding instructions', body: 'Write step-by-step instructions so someone else could make your exact plane. Take photos of each fold step on the iPad to go with the instructions.' },
+    ],
+    finish: '📤 Share: Written + photo instructions + demo to the class'
+  },
+
+  plan5: {
+    theme: 'plane', category: '📊 Variables Test',
+    title: 'Does Paper Weight Matter?',
+    desc: 'Run a controlled experiment to find out how paper affects flight!',
+    steps: [
+      { head: 'Gather your paper types', body: 'Collect 3–4 different types of paper: regular printer paper, thick card, tissue paper, newspaper, or similar. Lay them out.' },
+      { head: 'Fold the SAME design in each paper', body: 'This is very important for a fair test — fold EXACTLY the same design in each paper type. The only thing changing is the paper.' },
+      { head: 'Make a prediction first', body: 'Before you test: write down which paper you think will make the best flier, and WHY. This is your hypothesis.' },
+      { head: 'Create your results table', body: 'Make a table: Paper type across the top, Throws 1–3 down the side, Average at the bottom. Throw each plane 3 times and record the distances.' },
+      { head: 'Analyse the results', body: 'Compare the averages. Which paper performed best? Was your prediction correct? What pattern do you see?' },
+      { head: 'Write your findings', body: 'Write a conclusion explaining: what you found out, why you think heavier/lighter paper made a difference, and what you would do differently next time.' },
+    ],
+    finish: '📤 Share: Results table + written conclusions'
+  },
+
+  plan6: {
+    theme: 'plane', category: '🎓 Tutorial Creator',
+    title: 'Teach the Class to Fold a Plane',
+    desc: 'Share your paper plane skills by creating a tutorial that actually works!',
+    steps: [
+      { head: 'Choose your best design', body: 'Pick the paper plane you know best and that you can fold reliably. It should be a design you\'re confident teaching.' },
+      { head: 'Fold it slowly and notice every step', body: 'Fold the plane very slowly. Stop at each fold and write it down. How many steps does it take? Number each one.' },
+      { head: 'Write your instructions', body: 'Write each step clearly: "Step 1: Fold the paper in half lengthways, with the short edges matching. Open it back out — this makes a centre crease." Be very specific!' },
+      { head: 'Photograph each step', body: 'Fold a fresh plane from scratch. At each step, take a clear photo on the iPad showing exactly what the fold looks like.' },
+      { head: 'Film your tutorial video', body: 'Set the iPad up pointing at your desk. Fold the plane from the beginning, narrating each step clearly as you go. Slow and clear is better than fast!' },
+      { head: 'Test your instructions', body: 'Give your written instructions to someone who has never made this plane and watch them try. Did they succeed? Update anything that was confusing.' },
+    ],
+    finish: '📤 Share: Written photo guide + how-to video tutorial'
+  },
+
+  plan7: {
+    theme: 'plane', category: '🏗️ Engineering Challenge',
+    title: 'Design a Plane That Carries Cargo',
+    desc: 'This is a real engineering challenge — can you make a paper plane strong enough to carry weight?',
+    steps: [
+      { head: 'Define your cargo', body: 'Choose your cargo item: a paper clip, a small eraser, a coin. Decide where on the plane you\'ll try to attach it — nose, wing, or body.' },
+      { head: 'Start with a strong base design', body: 'Fold a plane that is already a solid, stable flier. Wider, flatter planes tend to handle weight better than narrow darts.' },
+      { head: 'Attach the cargo and test', body: 'Attach your cargo item (use a tiny piece of tape if needed). Throw it gently and observe: Does it fly at all? Does it nose-dive? Veer sideways?' },
+      { head: 'Modify and improve', body: 'Based on what happened, make one adjustment at a time: move the cargo, adjust the wings, add a different fold. Test after each change.' },
+      { head: 'Record your experiments', body: 'Take photos or video of each test version. Write down what you changed and what happened each time.' },
+      { head: 'Write your engineering report', body: 'Write a short report: What worked? What didn\'t? What did you learn about balance and weight distribution? What would you try next?' },
+    ],
+    finish: '📤 Share: Photo/video sequence of tests + findings report'
+  },
+
+  /* ════ CROSS-TOPIC ════ */
+  cros1: {
+    theme: 'cross', category: '🦕✈️ Dino + Planes',
+    title: 'Could a Pterodactyl Outfly Your Paper Plane?',
+    desc: 'Combine your dinosaur knowledge and paper plane skills for the ultimate flying comparison!',
+    steps: [
+      { head: 'Research the pterosaurs', body: 'Look up pterosaurs (not just pterodactyls — there were many types!). Find the wingspan, estimated flying speed, and how scientists think they flew.' },
+      { head: 'Get your best paper plane data', body: 'Test your best paper plane 5 times and record: how far it travels and roughly how fast (time it from throw to landing if you can).' },
+      { head: 'Make a comparison table', body: 'Draw a table with two columns: Your Paper Plane vs Pterosaur. Compare: wingspan, flight distance, speed, how long it stays in the air.' },
+      { head: 'Decide the winner — with evidence', body: 'Write your verdict: "In a race, the ___ would win because…" Support your answer with numbers from your research and experiment.' },
+      { head: 'Consider the surprises', body: 'Were there any results that surprised you? Write down one thing that was different from what you expected and why you think that is.' },
+      { head: 'Create your display', body: 'Make a comparison poster with your table, drawings of both, and your verdict written clearly at the bottom like a judge\'s decision.' },
+    ],
+    finish: '📤 Share: Comparison poster + recorded verdict'
+  },
+
+  cros2: {
+    theme: 'cross', category: '⚔️✈️ Ninjago + Planes',
+    title: 'Design a Ninja Glider',
+    desc: 'Combine your love of Ninjago and paper planes to engineer a stealthy ninja aircraft!',
+    steps: [
+      { head: 'Think about what a ninja glider needs', body: 'A ninja glider needs to be: fast, quiet, accurate, and able to carry a ninja. Write down 4–5 design requirements.' },
+      { head: 'Sketch your design ideas', body: 'Draw 2–3 different glider concepts on rough paper. Think about the shape — should it look like a real plane, or something more like Ninjago vehicles?' },
+      { head: 'Choose the best design and fold it', body: 'Pick your favourite sketch and try to make it as a paper plane. You may need to experiment with the folds.' },
+      { head: 'Test and improve the flight', body: 'Throw it several times. Is it stable? Does it glide smoothly? Make adjustments until it flies as well as possible.' },
+      { head: 'Design it visually', body: 'Decorate your glider with ninja colours and markings. Draw a detailed design plan showing the glider from above, the side, and the front.' },
+      { head: 'Write the mission story', body: 'Write a short story about the ninja using this glider on a secret mission. Describe what the glider can do — its speed, stealth features, and special abilities.' },
+    ],
+    finish: '📤 Share: Physical plane + design drawings + mission story'
+  },
+
+  cros3: {
+    theme: 'cross', category: '🦕⚔️ Dino + Ninjago',
+    title: 'Ninja vs Dinosaur — Who Wins?',
+    desc: 'Use your real dinosaur knowledge to write a scientific battle argument!',
+    steps: [
+      { head: 'Choose your fighters', body: 'Pick one Ninjago ninja and one dinosaur. Try to make it interesting — a fair match, not too one-sided (or deliberately one-sided for comedy!).' },
+      { head: 'Research your dinosaur\'s real stats', body: 'Find real facts: speed, size, bite force (if known), any special features. Write them down — these are your scientific evidence.' },
+      { head: 'List the ninja\'s abilities', body: 'Write down the ninja\'s element, special moves, weapons, and any weaknesses they have shown in the show.' },
+      { head: 'Write your battle argument', body: 'Write a structured argument: Paragraph 1 — introduce both fighters. Paragraph 2 — the dinosaur\'s advantages. Paragraph 3 — the ninja\'s advantages. Paragraph 4 — your verdict.' },
+      { head: 'Support with evidence', body: 'Go back through and add specific facts to back up every claim. "The T-Rex had a bite force of X Newtons…" is much stronger than just "it had a big bite."' },
+      { head: 'Perform or record it', body: 'Read your argument out loud dramatically. You could do different voices for each fighter, or present it like a sports commentator announcing the match.' },
+    ],
+    finish: '📤 Share: Written argument + dramatic recorded or live reading'
+  },
+
+  cros4: {
+    theme: 'cross', category: '🌟 All Three!',
+    title: 'My Ultimate Expert Presentation',
+    desc: 'This is YOUR moment to be the teacher — share what you know better than almost anyone!',
+    steps: [
+      { head: 'Choose your ONE topic', body: 'Pick the ONE thing from all your interests that you feel you know most about. It could be a specific dinosaur, a part of Ninjago, or a paper plane technique.' },
+      { head: 'Brainstorm everything you know', body: 'Write down EVERYTHING you know about this topic — don\'t filter anything out yet. Fill the whole page!' },
+      { head: 'Choose your 5 best points', body: 'Look at your brainstorm and circle the 5 most interesting or impressive things. These will be the backbone of your presentation.' },
+      { head: 'Decide how you\'ll present', body: 'Choose your format: live talk, video, slides, poster, demonstration, or a mix. Pick what feels most comfortable and exciting to you.' },
+      { head: 'Prepare your materials', body: 'Make whatever you need: drawings, slides, props, notes to speak from. Practice it at least once before the real thing.' },
+      { head: 'Present to the class!', body: 'You are the expert. Speak confidently — you know more about this than most people in the room. Take questions at the end if you feel comfortable.' },
+    ],
+    finish: '📤 Share: Your choice — you decide the format!'
+  },
+
+  cros5: {
+    theme: 'cross', category: '📰 All Three!',
+    title: 'The Dino-Ninja-Planes Newspaper',
+    desc: 'Become a reporter and editor — create your very own front page newspaper!',
+    steps: [
+      { head: 'Plan your front page layout', body: 'A newspaper front page has: a big title (masthead), a main headline and story, 1–2 smaller stories, and pictures. Sketch a rough layout first.' },
+      { head: 'Write your dinosaur article', body: 'Choose an interesting dinosaur topic. Write it as a news story: use a punchy headline, start with the most important fact, then add more detail.' },
+      { head: 'Write your Ninjago article', body: 'Write a Ninjago article — maybe a "review" of the new season, or a "breaking news" about a new villain appearing!' },
+      { head: 'Write your paper planes article', body: 'Write a paper planes article — maybe a report on a "record-breaking flight," or a "how-to" guide written in newspaper style.' },
+      { head: 'Add pictures and captions', body: 'Draw or print an image for each article. Write a caption (a short description sentence) under each image.' },
+      { head: 'Design and assemble your front page', body: 'Put it all together on one page. Give your newspaper a great name and add today\'s date. You\'re the editor — make it look amazing!' },
+    ],
+    finish: '📤 Share: Print or photograph your finished newspaper front page'
+  }
+
+};
+
+// ─── MODAL LOGIC ────────────────────────────────────────────────────────────
+function openModal(id) {
+  const inv = investigations[id];
+  if (!inv) return;
+
+  const themeClass = inv.theme;
+  const stepClass  = inv.theme + '-step';
+
+  document.getElementById('modalTop').className = 'modal-top ' + themeClass;
+  document.getElementById('modalCategory').textContent = inv.category;
+  document.getElementById('modalTitle').textContent     = inv.title;
+  document.getElementById('modalDesc').textContent      = inv.desc;
+
+  const stepsEl = document.getElementById('modalSteps');
+  stepsEl.innerHTML = '';
+  inv.steps.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.className = 'step ' + stepClass;
+    li.innerHTML = `<div class="step-num">${i + 1}</div><div class="step-text"><strong>${s.head}</strong><span>${s.body}</span></div>`;
+    stepsEl.appendChild(li);
+  });
+
+  const finish = document.getElementById('modalFinish');
+  finish.className = 'finish-box ' + themeClass;
+  finish.innerHTML = `<span class="finish-icon">🎉</span><span>${inv.finish}</span>`;
+
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  // focus modal for accessibility
+  setTimeout(() => document.getElementById('modal').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function closeIfBackground(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+}
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// Keyboard: allow Enter/Space to open cards
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      card.click();
+    }
+  });
+});
+</script>
+</body>
+</html>
