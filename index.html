@@ -5,8 +5,140 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🔍 Felix's Investigation Station</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FIREBASE CONFIGURATION
+     ---------------------------------------------------------------
+     After setting up Firebase, replace the placeholder values below
+     with your actual config from the Firebase Console.
+     See the setup instructions provided with this file.
+════════════════════════════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, push, onValue, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── REPLACE THESE VALUES WITH YOUR FIREBASE CONFIG ──────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyCOzQOpjZSYX11KGz3aBkVjkQ-FscVNXjU",
+  authDomain: "hps-online-0596.firebaseapp.com",
+  databaseURL: "https://hps-online-0596-default-rtdb.firebaseio.com",
+  projectId: "hps-online-0596",
+  storageBucket: "hps-online-0596.firebasestorage.app",
+  messagingSenderId: "854631621021",
+  appId: "1:854631621021:web:18c56b74b08a4a07decf74",
+  measurementId: "G-SFCF3ZWVE5"
+};
+// ────────────────────────────────────────────────────────────────
+
+const app  = initializeApp(firebaseConfig);
+const db   = getDatabase(app);
+const ROOT = 'felix'; // unique key for this student — do not change
+
+// ── HELPERS ─────────────────────────────────────────────────────
+function dbRef(path){ return ref(db, `${ROOT}/${path}`); }
+
+async function dbGet(path){
+  const snap = await get(dbRef(path));
+  return snap.exists() ? snap.val() : null;
+}
+
+async function dbSet(path, value){
+  await set(dbRef(path), value);
+}
+
+async function dbUpdate(path, value){
+  await update(dbRef(path), value);
+}
+
+function dbListen(path, cb){
+  onValue(dbRef(path), snap => cb(snap.exists() ? snap.val() : null));
+}
+
+// ── SYNC STATUS INDICATOR ────────────────────────────────────────
+function showSync(msg, colour){
+  const el = document.getElementById('syncIndicator');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.background = colour || '#28a745';
+  el.classList.add('show');
+  if(colour !== '#e74c3c') setTimeout(()=>el.classList.remove('show'), 2000);
+}
+
+// ── CHECK CONFIG ─────────────────────────────────────────────────
+function configIsSet(){
+  return firebaseConfig.apiKey !== 'PASTE_YOUR_API_KEY_HERE';
+}
+
+// ── STATE ────────────────────────────────────────────────────────
+// state is the live in-memory copy; Firebase is the source of truth
+window._state = { selected:[], progress:{}, stepComments:{}, stepTicks:{} };
+
+async function loadStateFromFirebase(){
+  if(!configIsSet()){
+    showSync('⚠️ Firebase not configured — using local mode', '#e67e22');
+    return;
+  }
+  try {
+    const data = await dbGet('state');
+    if(data) window._state = Object.assign({ selected:[], progress:{}, stepComments:{}, stepTicks:{} }, data);
+    showSync('✓ Connected', '#28a745');
+  } catch(e){
+    showSync('⚠️ Could not reach database', '#e74c3c');
+    console.error(e);
+  }
+}
+
+async function saveStateToFirebase(){
+  if(!configIsSet()){ return; }
+  try {
+    await dbSet('state', window._state);
+    showSync('✓ Saved & synced', '#28a745');
+  } catch(e){
+    showSync('⚠️ Save failed — check connection', '#e74c3c');
+    console.error(e);
+  }
+}
+
+// Live listener — updates UI on this device when another device saves
+function startLiveSync(){
+  if(!configIsSet()) return;
+  dbListen('state', data => {
+    if(!data) return;
+    window._state = Object.assign({ selected:[], progress:{}, stepComments:{}, stepTicks:{} }, data);
+    applyCardVisibility();
+    // if teacher panel is open, refresh it
+    if(document.getElementById('teacherOverlay').classList.contains('open')){
+      buildInvSelector();
+      buildProgressNotes();
+    }
+    // if a modal is open, refresh its ticks/comments
+    if(window._currentModalId){
+      refreshModalState(window._currentModalId);
+    }
+  });
+}
+
+// expose to global scope for onclick handlers
+window._db        = { saveStateToFirebase, loadStateFromFirebase };
+window._dbReady   = false;
+
+// ── INIT ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadStateFromFirebase();
+  applyCardVisibility();
+  startLiveSync();
+  window._dbReady = true;
+});
+
+// ── STATE ACCESSORS (used by onclick handlers) ───────────────────
+window.getState    = ()    => window._state;
+window.saveState   = async () => { await saveStateToFirebase(); };
+
+</script>
+
 <style>
-:root {
+:root{
   --dino:#2d6a4f;--dino-l:#52b788;--dino-p:#d8f3dc;
   --ninj:#e63946;--ninj-l:#ff6b6b;--ninj-p:#ffe8e8;
   --plan:#1d3557;--plan-l:#457b9d;--plan-p:#e8f4fd;
@@ -17,18 +149,16 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);padding:28px 18px 80px;max-width:980px;margin:0 auto;line-height:1.6;}
 
-/* HEADER */
 header{text-align:center;padding:44px 32px;background:linear-gradient(135deg,#1d3557 0%,#2d6a4f 50%,#e63946 100%);border-radius:28px;color:white;margin-bottom:32px;position:relative;overflow:hidden;}
 header::before{content:'🦕✈️⚔️';font-size:90px;position:absolute;top:-16px;right:-8px;opacity:0.1;transform:rotate(12deg);}
 header h1{font-family:'Fredoka One',cursive;font-size:2.4em;margin-bottom:6px;text-shadow:0 2px 12px rgba(0,0,0,0.25);}
 header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:600;}
 
-/* ADULT ACCESS BUTTON */
-.adult-bar{text-align:right;margin-bottom:20px;}
+.adult-bar{text-align:right;margin-bottom:20px;display:flex;justify-content:flex-end;align-items:center;gap:10px;}
 .adult-btn{background:#f0f0f0;border:2px solid #ddd;border-radius:12px;padding:8px 18px;font-family:'Nunito',sans-serif;font-size:0.85em;font-weight:700;cursor:pointer;color:#555;transition:all 0.2s;}
 .adult-btn:hover{background:#e0e0e0;color:#333;}
+.conn-status{font-size:0.78em;font-weight:700;color:#888;background:#f0f0f0;border-radius:8px;padding:4px 10px;}
 
-/* SECTION HEADERS */
 .section-header{display:flex;align-items:center;gap:14px;margin:44px 0 20px;padding-bottom:10px;border-bottom:3px solid;}
 .section-header .emoji{font-size:2em;}
 .section-header h2{font-family:'Fredoka One',cursive;font-size:1.8em;}
@@ -37,7 +167,6 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .section-header.plan{border-color:var(--plan);color:var(--plan);}
 .section-header.cross{border-color:var(--cross-l);color:var(--cross);}
 
-/* CARDS */
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;}
 .card{border-radius:var(--r);padding:22px;box-shadow:var(--shadow);border:2px solid transparent;cursor:pointer;transition:transform 0.18s,box-shadow 0.18s;position:relative;}
 .card:hover{transform:translateY(-4px);box-shadow:0 10px 32px rgba(0,0,0,0.14);}
@@ -57,12 +186,14 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .click-hint{font-size:0.75em;font-weight:700;margin-top:10px;display:inline-block;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,0.65);color:#555;}
 .card-done-badge{position:absolute;top:12px;right:12px;background:#28a745;color:white;border-radius:20px;font-size:0.7em;font-weight:800;padding:3px 10px;}
 
-/* EMPTY STATE */
-.no-investigations{text-align:center;padding:48px 24px;background:white;border-radius:20px;box-shadow:var(--shadow);margin:20px 0;}
-.no-investigations .ni-icon{font-size:3em;margin-bottom:12px;}
-.no-investigations p{color:#888;font-size:0.95em;}
+/* LOADING OVERLAY */
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.92);z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.loading-overlay.hidden{display:none;}
+.loading-spinner{width:48px;height:48px;border:5px solid #eee;border-top-color:#2d6a4f;border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-overlay p{font-family:'Nunito',sans-serif;font-weight:700;color:#555;font-size:1em;}
 
-/* ── STUDENT MODAL ── */
+/* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,30,0.55);z-index:1000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
 .modal-overlay.open{display:flex;animation:fadein 0.2s ease;}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
@@ -73,7 +204,7 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .modal-top.ninj{background:var(--ninj-p);}
 .modal-top.plan{background:var(--plan-p);}
 .modal-top.cross{background:var(--cross-p);}
-.modal-close{position:absolute;top:16px;right:18px;background:rgba(255,255,255,0.8);border:none;border-radius:50%;width:36px;height:36px;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.12);transition:background 0.15s;}
+.modal-close{position:absolute;top:16px;right:18px;background:rgba(255,255,255,0.8);border:none;border-radius:50%;width:36px;height:36px;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.12);}
 .modal-close:hover{background:white;}
 .modal-category{font-size:0.72em;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;}
 .modal-top.dino .modal-category{color:var(--dino);}
@@ -86,7 +217,6 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .steps-heading{font-family:'Fredoka One',cursive;font-size:1.15em;margin-bottom:16px;color:var(--text);}
 .steps{list-style:none;display:flex;flex-direction:column;gap:14px;}
 
-/* STEP WITH TICK */
 .step{border-radius:14px;padding:14px 16px;border-left:4px solid #ddd;background:#f8f8f8;}
 .step.dino-step{border-color:var(--dino-l);}
 .step.ninj-step{border-color:var(--ninj-l);}
@@ -113,7 +243,7 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .add-comment-area textarea{width:100%;border:2px solid #e0e0e0;border-radius:10px;padding:8px 12px;font-family:'Nunito',sans-serif;font-size:0.85em;resize:none;height:70px;}
 .add-comment-area textarea:focus{outline:none;border-color:var(--gold);}
 .comment-controls{display:flex;gap:8px;margin-top:6px;align-items:center;}
-.comment-author-select{font-family:'Nunito',sans-serif;font-size:0.82em;padding:4px 8px;border:2px solid #e0e0e0;border-radius:8px;cursor:pointer;}
+.comment-author-select{font-family:'Nunito',sans-serif;font-size:0.82em;padding:4px 8px;border:2px solid #e0e0e0;border-radius:8px;}
 .save-comment-btn{background:#2d6a4f;color:white;border:none;border-radius:8px;padding:5px 14px;font-family:'Nunito',sans-serif;font-size:0.82em;font-weight:700;cursor:pointer;}
 .save-comment-btn:hover{background:#1e4d38;}
 .cancel-comment-btn{background:none;border:none;color:#888;font-family:'Nunito',sans-serif;font-size:0.82em;cursor:pointer;}
@@ -124,26 +254,21 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .finish-box.plan{background:rgba(69,123,157,0.13);color:var(--plan);}
 .finish-box.cross{background:rgba(244,162,97,0.2);color:var(--cross);}
 .finish-icon{font-size:1.5em;flex-shrink:0;}
-
-.download-btn{display:flex;align-items:center;gap:8px;margin-top:14px;background:#1d3557;color:white;border:none;border-radius:12px;padding:10px 20px;font-family:'Nunito',sans-serif;font-size:0.88em;font-weight:700;cursor:pointer;transition:background 0.2s;}
+.download-btn{display:flex;align-items:center;gap:8px;margin-top:14px;background:#1d3557;color:white;border:none;border-radius:12px;padding:10px 20px;font-family:'Nunito',sans-serif;font-size:0.88em;font-weight:700;cursor:pointer;}
 .download-btn:hover{background:#2c4a7c;}
 
-/* ── TEACHER PANEL OVERLAY ── */
+/* TEACHER PANEL */
 .teacher-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,40,0.7);z-index:2000;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px);}
 .teacher-overlay.open{display:flex;}
-.teacher-panel{background:white;border-radius:24px;max-width:820px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.35);position:relative;}
-
-.teacher-header{background:linear-gradient(135deg,#1a1a2e,#2d6a4f);color:white;padding:24px 28px;border-radius:24px 24px 0 0;display:flex;justify-content:space-between;align-items:center;}
+.teacher-panel{background:white;border-radius:24px;max-width:820px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.35);}
+.teacher-header{background:linear-gradient(135deg,#1a1a2e,#2d6a4f);color:white;padding:24px 28px;border-radius:24px 24px 0 0;display:flex;justify-content:space-between;align-items:flex-start;}
 .teacher-header h2{font-family:'Fredoka One',cursive;font-size:1.6em;}
 .teacher-header p{font-size:0.85em;opacity:0.8;margin-top:2px;}
-.teacher-close{background:rgba(255,255,255,0.15);border:none;color:white;border-radius:50%;width:38px;height:38px;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.teacher-close{background:rgba(255,255,255,0.15);border:none;color:white;border-radius:50%;width:38px;height:38px;font-size:1.2em;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .teacher-close:hover{background:rgba(255,255,255,0.25);}
-
 .teacher-body{padding:24px 28px 32px;}
 .teacher-section{margin-bottom:32px;}
 .teacher-section h3{font-family:'Fredoka One',cursive;font-size:1.2em;color:var(--text);margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #eee;}
-
-/* INVESTIGATION SELECTOR */
 .inv-selector-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
 .inv-selector-item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:12px;border:2px solid #e8e8e8;cursor:pointer;transition:all 0.15s;background:#fafafa;}
 .inv-selector-item:hover{border-color:#aaa;background:#f0f0f0;}
@@ -152,18 +277,13 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .inv-selector-item label{font-size:0.85em;font-weight:700;cursor:pointer;line-height:1.3;}
 .selection-count{font-size:0.85em;color:#888;margin-bottom:12px;}
 .selection-count span{font-weight:800;color:#2d6a4f;}
-
-/* CURRICULUM LINKS */
 .curriculum-grid{display:grid;gap:12px;}
 .curriculum-item{background:#f8f8f8;border-radius:12px;padding:14px 16px;border:2px solid #e8e8e8;}
-.curriculum-item h4{font-size:0.9em;font-weight:800;margin-bottom:6px;color:var(--text);}
+.curriculum-item h4{font-size:0.9em;font-weight:800;margin-bottom:6px;}
 .curriculum-item p{font-size:0.82em;color:#555;line-height:1.5;}
 .curriculum-tag{display:inline-block;font-size:0.72em;font-weight:700;padding:2px 9px;border-radius:20px;margin:2px;background:#e8eaf6;color:#283593;}
-
-/* PROGRESS NOTES */
-.progress-section{background:#f8f8f8;border-radius:14px;padding:16px;}
+.progress-section{background:#f8f8f8;border-radius:14px;padding:16px;margin-bottom:16px;}
 .progress-section h4{font-size:0.9em;font-weight:800;margin-bottom:10px;color:#555;}
-.progress-note-list{margin-bottom:10px;}
 .progress-note{background:white;border:1px solid #e0e0e0;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:0.85em;}
 .progress-note .note-meta{font-weight:800;color:#888;font-size:0.8em;margin-bottom:2px;}
 .add-note-row{display:flex;gap:8px;}
@@ -173,50 +293,58 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .add-note-col select{font-family:'Nunito',sans-serif;font-size:0.82em;padding:4px 8px;border:2px solid #e0e0e0;border-radius:8px;}
 .add-note-col button{background:#1d3557;color:white;border:none;border-radius:8px;padding:6px 14px;font-family:'Nunito',sans-serif;font-size:0.82em;font-weight:700;cursor:pointer;}
 
-/* PIN SCREEN */
+/* PIN */
 .pin-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,40,0.8);z-index:3000;align-items:center;justify-content:center;backdrop-filter:blur(8px);}
 .pin-overlay.open{display:flex;}
 .pin-box{background:white;border-radius:24px;padding:36px 40px;text-align:center;max-width:340px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
-.pin-box h3{font-family:'Fredoka One',cursive;font-size:1.6em;margin-bottom:6px;color:var(--text);}
+.pin-box h3{font-family:'Fredoka One',cursive;font-size:1.6em;margin-bottom:6px;}
 .pin-box p{font-size:0.88em;color:#666;margin-bottom:20px;}
 .pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:20px;}
 .pin-dot{width:16px;height:16px;border-radius:50%;background:#e0e0e0;transition:background 0.2s;}
 .pin-dot.filled{background:#1d3557;}
 .pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:220px;margin:0 auto 16px;}
 .pin-key{background:#f4f4f4;border:2px solid #e0e0e0;border-radius:14px;padding:14px;font-family:'Fredoka One',cursive;font-size:1.3em;cursor:pointer;transition:all 0.15s;}
-.pin-key:hover{background:#e8e8e8;border-color:#ccc;}
-.pin-key.wide{grid-column:span 2;}
+.pin-key:hover{background:#e8e8e8;}
 .pin-error{color:#e63946;font-size:0.85em;font-weight:700;height:20px;}
 .pin-cancel{background:none;border:none;color:#888;font-family:'Nunito',sans-serif;font-size:0.88em;cursor:pointer;margin-top:8px;text-decoration:underline;}
 
-/* SAVE INDICATOR */
-.save-indicator{position:fixed;bottom:20px;right:20px;background:#28a745;color:white;border-radius:12px;padding:8px 16px;font-size:0.85em;font-weight:700;opacity:0;transition:opacity 0.3s;z-index:9999;pointer-events:none;}
-.save-indicator.show{opacity:1;}
+/* SYNC INDICATOR */
+.sync-indicator{position:fixed;bottom:20px;right:20px;background:#28a745;color:white;border-radius:12px;padding:8px 16px;font-size:0.85em;font-weight:700;opacity:0;transition:opacity 0.3s;z-index:9999;pointer-events:none;}
+.sync-indicator.show{opacity:1;}
 
-@media(max-width:600px){
-  header h1{font-size:1.8em;}
-  .cards{grid-template-columns:1fr;}
-  .modal-title{font-size:1.3em;}
-  .teacher-body{padding:16px;}
-  .inv-selector-grid{grid-template-columns:1fr;}
-}
+/* FIREBASE NOT CONFIGURED BANNER */
+.config-banner{background:#fff3cd;border:2px solid #f39c12;border-radius:14px;padding:16px 20px;margin-bottom:24px;font-size:0.9em;display:none;}
+.config-banner.visible{display:block;}
+.config-banner strong{color:#b7770d;}
+
+@media(max-width:600px){header h1{font-size:1.8em;}.cards{grid-template-columns:1fr;}.teacher-body{padding:16px;}.inv-selector-grid{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
+
+<!-- LOADING OVERLAY — shown while Firebase connects -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <p>Connecting to database…</p>
+</div>
 
 <header>
   <h1>🔍 Felix's Investigation Station</h1>
   <p>Pick an investigation, tap to see your steps, then go and create something amazing!</p>
 </header>
 
+<!-- Config not set warning -->
+<div class="config-banner" id="configBanner">
+  <strong>⚠️ Firebase not configured yet.</strong> The site is running in local-only mode. Notes and selections will not sync between devices until you add your Firebase config. See the setup instructions.
+</div>
+
 <div class="adult-bar">
+  <span class="conn-status" id="connStatus">⏳ Connecting…</span>
   <button class="adult-btn" onclick="openPIN()">🔒 Adult Settings</button>
 </div>
 
 <!-- ═══ DINOSAURS ═══ -->
-<div class="section-header dino" id="sec-dino">
-  <span class="emoji">🦕</span><h2>Dinosaur Investigations</h2>
-</div>
+<div class="section-header dino" id="sec-dino"><span class="emoji">🦕</span><h2>Dinosaur Investigations</h2></div>
 <div class="cards" id="cards-dino">
   <div class="card dino" data-id="dino1" tabindex="0" onclick="openModal('dino1')"><div class="card-label">🔬 Science</div><h3>Which dinosaur was the best hunter?</h3><p>Compare predator dinosaurs and decide who was the ultimate champion — using evidence!</p><span class="click-hint">👆 Tap to see your steps</span></div>
   <div class="card dino" data-id="dino2" tabindex="0" onclick="openModal('dino2')"><div class="card-label">📖 Expert Guide</div><h3>Write a Dinosaur Field Guide</h3><p>Create your own expert guide to 5 of your favourite dinosaurs.</p><span class="click-hint">👆 Tap to see your steps</span></div>
@@ -229,9 +357,7 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 </div>
 
 <!-- ═══ NINJAGO ═══ -->
-<div class="section-header ninj" id="sec-ninj">
-  <span class="emoji">⚔️</span><h2>Ninjago Investigations</h2>
-</div>
+<div class="section-header ninj" id="sec-ninj"><span class="emoji">⚔️</span><h2>Ninjago Investigations</h2></div>
 <div class="cards" id="cards-ninj">
   <div class="card ninj" data-id="ninj1" tabindex="0" onclick="openModal('ninj1')"><div class="card-label">✍️ Creative Writing</div><h3>Write a New Ninjago Episode</h3><p>Create a brand new episode — who is the villain? What elemental powers appear?</p><span class="click-hint">👆 Tap to see your steps</span></div>
   <div class="card ninj" data-id="ninj2" tabindex="0" onclick="openModal('ninj2')"><div class="card-label">🗺️ World Building</div><h3>Map the Ninjago World</h3><p>Design a detailed map of the whole Ninjago universe — plus your own new locations!</p><span class="click-hint">👆 Tap to see your steps</span></div>
@@ -243,9 +369,7 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 </div>
 
 <!-- ═══ PLANES ═══ -->
-<div class="section-header plan" id="sec-plan">
-  <span class="emoji">✈️</span><h2>Paper Plane Investigations</h2>
-</div>
+<div class="section-header plan" id="sec-plan"><span class="emoji">✈️</span><h2>Paper Plane Investigations</h2></div>
 <div class="cards" id="cards-plan">
   <div class="card plan" data-id="plan1" tabindex="0" onclick="openModal('plan1')"><div class="card-label">🔬 Experiment</div><h3>Which Design Flies Furthest?</h3><p>Test 3 designs 5 times each, measure the results, and find the champion!</p><span class="click-hint">👆 Tap to see your steps</span></div>
   <div class="card plan" data-id="plan2" tabindex="0" onclick="openModal('plan2')"><div class="card-label">🏆 World Records</div><h3>Paper Plane World Records</h3><p>Research the world records — then try to set your own class record!</p><span class="click-hint">👆 Tap to see your steps</span></div>
@@ -257,9 +381,7 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 </div>
 
 <!-- ═══ CROSS ═══ -->
-<div class="section-header cross" id="sec-cross">
-  <span class="emoji">🌟</span><h2>Cross-Topic Mega Investigations</h2>
-</div>
+<div class="section-header cross" id="sec-cross"><span class="emoji">🌟</span><h2>Cross-Topic Mega Investigations</h2></div>
 <div class="cards" id="cards-cross">
   <div class="card cross" data-id="cros1" tabindex="0" onclick="openModal('cros1')"><div class="card-label">🦕✈️ Dino + Planes</div><h3>Could a Pterodactyl Outfly Your Plane?</h3><p>Compare real pterosaur flight data with your best paper plane. Who wins?</p><span class="click-hint">👆 Tap to see your steps</span></div>
   <div class="card cross" data-id="cros2" tabindex="0" onclick="openModal('cros2')"><div class="card-label">⚔️✈️ Ninjago + Planes</div><h3>Design a Ninja Glider</h3><p>Design, fold and test a stealthy ninja glider — then write the mission story!</p><span class="click-hint">👆 Tap to see your steps</span></div>
@@ -268,7 +390,7 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
   <div class="card cross" data-id="cros5" tabindex="0" onclick="openModal('cros5')"><div class="card-label">📰 All Three!</div><h3>The Dino-Ninja-Planes Newspaper</h3><p>Write a one-page newspaper with three articles — one per interest!</p><span class="click-hint">👆 Tap to see your steps</span></div>
 </div>
 
-<!-- ═══ STUDENT MODAL ═══ -->
+<!-- STUDENT MODAL -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeIfBackground(event)">
   <div class="modal" id="modal" role="dialog" aria-modal="true" tabindex="-1">
     <div class="modal-top" id="modalTop">
@@ -281,87 +403,76 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
       <div class="steps-heading">🪜 Your Steps</div>
       <ul class="steps" id="modalSteps"></ul>
       <div class="finish-box" id="modalFinish"></div>
-      <button class="download-btn" id="downloadBtn" onclick="downloadSummary()">📄 Download Project Summary</button>
+      <button class="download-btn" onclick="downloadSummary()">📄 Download Project Summary</button>
     </div>
   </div>
 </div>
 
-<!-- ═══ PIN OVERLAY ═══ -->
+<!-- PIN -->
 <div class="pin-overlay" id="pinOverlay">
   <div class="pin-box">
     <h3>🔒 Adult Access</h3>
     <p>Enter your PIN to access teacher settings</p>
     <div class="pin-dots" id="pinDots">
-      <div class="pin-dot" id="pd0"></div>
-      <div class="pin-dot" id="pd1"></div>
-      <div class="pin-dot" id="pd2"></div>
-      <div class="pin-dot" id="pd3"></div>
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
     </div>
     <div class="pin-keypad">
-      <button class="pin-key" onclick="pinPress('1')">1</button>
-      <button class="pin-key" onclick="pinPress('2')">2</button>
-      <button class="pin-key" onclick="pinPress('3')">3</button>
-      <button class="pin-key" onclick="pinPress('4')">4</button>
-      <button class="pin-key" onclick="pinPress('5')">5</button>
-      <button class="pin-key" onclick="pinPress('6')">6</button>
-      <button class="pin-key" onclick="pinPress('7')">7</button>
-      <button class="pin-key" onclick="pinPress('8')">8</button>
-      <button class="pin-key" onclick="pinPress('9')">9</button>
-      <button class="pin-key" onclick="pinPress('back')">⌫</button>
-      <button class="pin-key" onclick="pinPress('0')">0</button>
-      <button class="pin-key" onclick="pinPress('clear')">✕</button>
+      <button class="pin-key" onclick="pinPress('1')">1</button><button class="pin-key" onclick="pinPress('2')">2</button><button class="pin-key" onclick="pinPress('3')">3</button>
+      <button class="pin-key" onclick="pinPress('4')">4</button><button class="pin-key" onclick="pinPress('5')">5</button><button class="pin-key" onclick="pinPress('6')">6</button>
+      <button class="pin-key" onclick="pinPress('7')">7</button><button class="pin-key" onclick="pinPress('8')">8</button><button class="pin-key" onclick="pinPress('9')">9</button>
+      <button class="pin-key" onclick="pinPress('back')">⌫</button><button class="pin-key" onclick="pinPress('0')">0</button><button class="pin-key" onclick="pinPress('clear')">✕</button>
     </div>
     <div class="pin-error" id="pinError"></div>
     <button class="pin-cancel" onclick="closePIN()">Cancel</button>
   </div>
 </div>
 
-<!-- ═══ TEACHER PANEL ═══ -->
+<!-- TEACHER PANEL -->
 <div class="teacher-overlay" id="teacherOverlay">
-  <div class="teacher-panel" id="teacherPanel">
+  <div class="teacher-panel">
     <div class="teacher-header">
-      <div><h2>🍎 Adult Settings — Felix</h2><p>Manage investigations, track progress and add notes</p></div>
+      <div><h2>🍎 Adult Settings — Felix</h2><p>Changes sync instantly to all devices</p></div>
       <button class="teacher-close" onclick="closeTeacher()">✕</button>
     </div>
     <div class="teacher-body">
-
-      <!-- INVESTIGATION SELECTOR -->
       <div class="teacher-section">
         <h3>📌 Select Active Investigations</h3>
-        <p style="font-size:0.88em;color:#666;margin-bottom:12px;">Choose up to 3 investigations to show Felix. Only these will be visible on the main page. Leave all unchecked to show everything.</p>
+        <p style="font-size:0.88em;color:#666;margin-bottom:12px;">Choose up to 3 investigations to show Felix. Leave all unchecked to show everything. Changes save instantly for all devices.</p>
         <div class="selection-count">Currently selected: <span id="selCount">0</span> / 3</div>
         <div class="inv-selector-grid" id="invSelectorGrid"></div>
-        <button onclick="saveSelection()" style="margin-top:14px;background:#2d6a4f;color:white;border:none;border-radius:12px;padding:10px 22px;font-family:'Nunito',sans-serif;font-size:0.88em;font-weight:700;cursor:pointer;">💾 Save &amp; Apply to Student View</button>
+        <button onclick="saveSelection()" style="margin-top:14px;background:#2d6a4f;color:white;border:none;border-radius:12px;padding:10px 22px;font-family:'Nunito',sans-serif;font-size:0.88em;font-weight:700;cursor:pointer;">💾 Save &amp; Apply to All Devices</button>
       </div>
-
-      <!-- CURRICULUM LINKS -->
       <div class="teacher-section">
         <h3>📚 Curriculum Links (Year 3)</h3>
         <div class="curriculum-grid" id="curriculumGrid"></div>
       </div>
-
-      <!-- PROGRESS NOTES -->
       <div class="teacher-section">
         <h3>📝 Progress Notes by Investigation</h3>
+        <p style="font-size:0.85em;color:#888;margin-bottom:16px;">Notes from all staff are visible here. They save immediately and are visible to everyone with the PIN.</p>
         <div id="progressNotesSection"></div>
       </div>
-
     </div>
   </div>
 </div>
 
-<div class="save-indicator" id="saveIndicator">✓ Saved</div>
+<div class="sync-indicator" id="syncIndicator">✓ Saved</div>
 
 <script>
-const CORRECT_PIN = '0596';
+// ══════════════════════════════════════════════════════════════
+// MAIN APP SCRIPT
+// All Firebase calls go through the module above (window._db,
+// window.getState, window.saveState). This script handles UI.
+// ══════════════════════════════════════════════════════════════
+const CORRECT_PIN  = '0596';
 const STUDENT_NAME = 'Felix';
 let pinEntry = '';
-let currentModalId = null;
+window._currentModalId = null;
 
-// ═══ INVESTIGATION DATA ═══
+// ── INVESTIGATION DATA ────────────────────────────────────────
 const investigations = {
-  dino1:{theme:'dino',category:'🔬 Science',title:'Which Dinosaur Was the Best Hunter?',desc:'Use your expert knowledge to compare predator dinosaurs and make a scientific argument about who wins!',steps:[{head:'Pick your dinosaurs',body:'Choose 3–5 predator dinosaurs you want to compare. Write their names down.'},{head:'Research each one',body:'For each dinosaur, find out: How fast were they? How big? What weapons (teeth/claws) did they have? How did they hunt?'},{head:'Make a comparison chart',body:'Draw a table with the dinosaurs across the top and the facts down the side. Fill it in so you can see the differences.'},{head:'Make your decision',body:'Look at your chart. Which dinosaur scores highest? Write your verdict — "The best hunter was ___ because…" and give at least 3 reasons.'},{head:'Add drawings or pictures',body:'Draw your winner or print a picture. Add labels showing their hunting features.'},{head:'Record your verdict',body:'Use the microphone or iPad to record yourself announcing your winner and explaining why — like a sports commentator!'}],finish:'📤 Share: Comparison chart + recorded verdict',curriculum:['English — Speaking & Listening','Science — Biological Sciences','Maths — Data Representation']},
-  dino2:{theme:'dino',category:'📖 Expert Guide',title:'Write a Dinosaur Field Guide',desc:'You are the expert — create a guide that others could use to learn about your favourite dinosaurs.',steps:[{head:'Choose your 5 dinosaurs',body:'Pick 5 dinosaurs you know really well or want to learn more about.'},{head:'Create a page for each dinosaur',body:'For each one write: Name, When it lived, What it ate, How big it was, One amazing fact.'},{head:'Add a drawing or image',body:'Draw each dinosaur or print a picture showing something interesting.'},{head:'Write an introduction',body:'Write a short intro page explaining what the guide is about and why you made it. Sign it as the author!'},{head:'Put it all together',body:'Arrange your pages in order. Make a mini book or digital slides.'},{head:'Design a cover',body:'Make a cover page with a great title and your name. Make it eye-catching!'}],finish:'📤 Share: Mini book or printed guide',curriculum:['English — Writing','English — Research Skills','Science — Biological Sciences']},
+  dino1:{theme:'dino',category:'🔬 Science',title:'Which Dinosaur Was the Best Hunter?',desc:'Use your expert knowledge to compare predator dinosaurs and make a scientific argument about who wins!',steps:[{head:'Pick your dinosaurs',body:'Choose 3–5 predator dinosaurs you want to compare. Write their names down.'},{head:'Research each one',body:'For each dinosaur, find out: How fast were they? How big? What weapons did they have? How did they hunt?'},{head:'Make a comparison chart',body:'Draw a table with the dinosaurs across the top and the facts down the side. Fill it in so you can see the differences.'},{head:'Make your decision',body:'Look at your chart. Which dinosaur scores highest? Write your verdict — "The best hunter was ___ because…" with at least 3 reasons.'},{head:'Add drawings or pictures',body:'Draw your winner or print a picture. Add labels showing their hunting features.'},{head:'Record your verdict',body:'Use the microphone or iPad to record yourself announcing your winner — like a sports commentator!'}],finish:'📤 Share: Comparison chart + recorded verdict',curriculum:['English — Speaking & Listening','Science — Biological Sciences','Maths — Data Representation']},
+  dino2:{theme:'dino',category:'📖 Expert Guide',title:'Write a Dinosaur Field Guide',desc:'You are the expert — create a guide that others could use to learn about your favourite dinosaurs.',steps:[{head:'Choose your 5 dinosaurs',body:'Pick 5 dinosaurs you know really well or want to learn more about.'},{head:'Create a page for each dinosaur',body:'For each one write: Name, When it lived, What it ate, How big it was, One amazing fact.'},{head:'Add a drawing or image',body:'Draw each dinosaur or print a picture showing something interesting.'},{head:'Write an introduction',body:'Write a short intro page explaining what the guide is about. Sign it as the author!'},{head:'Put it all together',body:'Arrange your pages in order. Make a mini book or digital slides.'},{head:'Design a cover',body:'Make a cover page with a great title and your name. Make it eye-catching!'}],finish:'📤 Share: Mini book or printed guide',curriculum:['English — Writing','English — Research Skills','Science — Biological Sciences']},
   dino3:{theme:'dino',category:'🎙️ Podcast',title:'Dinosaur Expert Podcast',desc:'You know more about dinosaurs than most adults — now share that knowledge in a podcast!',steps:[{head:'Plan your 5 interview questions',body:'Write down 5 questions someone might ask a dinosaur expert.'},{head:'Write your answers',body:'Answer each question using your knowledge. Include specific facts and things that might surprise people.'},{head:'Practise saying it out loud',body:'Read through your questions and answers once or twice so you feel comfortable.'},{head:'Set up your recording',body:'Find a quiet spot and get the microphone ready.'},{head:'Record your podcast',body:'Press record and go! Speak clearly and with confidence — you are the expert.'},{head:'Listen back',body:'Play it back. Happy with it? If you want to redo any part, that is fine.'}],finish:'📤 Share: Audio recording to play to the class',curriculum:['English — Speaking & Listening','English — Research Skills']},
   dino4:{theme:'dino',category:'📐 Maths',title:'How BIG Were They Really?',desc:'Bring dinosaurs to life by showing their actual size!',steps:[{head:'Research the sizes',body:'Look up the length of 5 different dinosaurs. Write down each measurement in metres.'},{head:'Go outside with a tape measure',body:'Mark out exactly how long each dinosaur was using chalk or sticks on the playground.'},{head:'Stand at the start',body:'Stand at one end of each measurement and have someone take a photo to show the scale.'},{head:'Create your photo display',body:'Arrange your photos on the Chromebook. Add a label showing the dinosaur name and length.'},{head:'Add comparison facts',body:'For each dinosaur add a comparison — like "This is as long as 3 cars."'},{head:'Write a surprising fact',body:'Add one fact that will make people say WOW next to each dinosaur photo.'}],finish:'📤 Share: Photo slideshow on the Chromebook',curriculum:['Maths — Measurement','Science — Biological Sciences','English — Digital Literacy']},
   dino5:{theme:'dino',category:'🗺️ Mapping',title:'Dino World Map',desc:'Discover where dinosaurs actually lived and find patterns in the fossil record!',steps:[{head:'Get a world map',body:'Print a blank world map or draw one. Make it large enough to add labels.'},{head:'Research fossil locations',body:'Look up where fossils have been found for 8–10 different dinosaurs.'},{head:'Mark the locations',body:'Draw a symbol or write the name of each dinosaur on the map where it was found.'},{head:'Add a legend',body:'Create a key explaining what each colour or symbol means.'},{head:'Look for patterns',body:'Study your map. Are most fossils in certain continents? Write 2–3 observations.'},{head:'Write your conclusion',body:'Write a short paragraph explaining what you discovered about where dinosaurs lived.'}],finish:'📤 Share: Annotated map poster',curriculum:['Geography — Place & Space','Science — Biological Sciences','English — Research Skills']},
@@ -372,7 +483,7 @@ const investigations = {
   ninj2:{theme:'ninj',category:'🗺️ World Building',title:'Map the Ninjago World',desc:'Become the official cartographer of the Ninjago universe!',steps:[{head:'List all locations you know',body:'Write down every Ninjago location you can think of — use your memory first!'},{head:'Research any you have forgotten',body:'Check what other key locations appear in the new season and earlier ones.'},{head:'Sketch a rough layout first',body:'On rough paper, sketch roughly where each place might be.'},{head:'Draw your final map',body:'On a bigger piece of paper draw the full map with land, sea, mountains and cities.'},{head:'Label everything',body:'Write the name of each location clearly. Add a small symbol for each place.'},{head:'Invent your own locations',body:'Add at least 2 new locations you have invented with a sentence describing each.'}],finish:'📤 Share: Large illustrated map poster',curriculum:['Geography — Place & Space','English — Research Skills','Visual Arts']},
   ninj3:{theme:'ninj',category:'🔬 Science',title:'The Real Science of Elements',desc:'Find out what real science is hiding inside the Ninjago elements!',steps:[{head:'List all the Ninjago elements',body:'Write down every element from the show — fire, water, earth, lightning, ice and any others.'},{head:'Pick 4 to research',body:'Choose 4 elements to investigate deeply.'},{head:'Research the real science',body:'For each element: What actually causes it in real life? Write notes.'},{head:'Create a fact sheet for each element',body:'Write: element name, the ninja who uses it, and 3–4 real science facts.'},{head:'Add a diagram',body:'Draw a diagram for at least one element showing the science behind it.'},{head:'Record an explanation',body:'Record yourself explaining the real science behind your favourite element.'}],finish:'📤 Share: Element fact sheets + one recorded explanation',curriculum:['Science — Physical Sciences','English — Research Skills','English — Speaking & Listening']},
   ninj4:{theme:'ninj',category:'🎨 Character Design',title:'Design Your Own Ninja',desc:'Create a brand new ninja who could join the team!',steps:[{head:'Decide on their element',body:'What element does your ninja control? It can be something completely new!'},{head:'Create their backstory',body:'Answer: Where did they grow up? How did they discover their powers? What is their biggest fear?'},{head:'Design their weapon and special move',body:'Create a special weapon and signature move. Give the move an epic name!'},{head:'Design their outfit',body:'Draw your ninja in full outfit. Use colours that match their element.'},{head:'Write their character profile',body:'Create an official profile: Name, Element, Weapon, Special Move, Strengths, Weaknesses, a quote.'},{head:'Present your ninja',body:'Show your drawing and profile or record a character reveal video!'}],finish:'📤 Share: Character sheet (drawing + written profile)',curriculum:['English — Creative Writing','Visual Arts','English — Speaking & Listening']},
-  ninj5:{theme:'ninj',category:'🎙️ Review Show',title:'Be a Ninjago Reviewer',desc:'You have seen the new season — now share your expert opinion!',steps:[{head:'Think about what you watched',body:'Write down everything you remember: characters, plot, best moments.'},{head:'Plan your review structure',body:'Decide sections: Summary, Highlights, Lowlights, Rating out of 10.'},{head:'Write your review notes',body:'Write bullet points for each section to speak from.'},{head:'Decide: video or audio?',body:'Will you film yourself on the iPad or record audio with the microphone?'},{head:'Record your review',body:'Press record and talk through your review naturally using your notes.'},{head:'Give your rating',body:'End with your score out of 10 AND who you would recommend this season to.'}],finish:'📤 Share: Video or audio review played to the class',curriculum:['English — Speaking & Listening','English — Critical Thinking']},
+  ninj5:{theme:'ninj',category:'🎙️ Review Show',title:'Be a Ninjago Reviewer',desc:"You've seen the new season — now share your expert opinion!",steps:[{head:'Think about what you watched',body:'Write down everything you remember: characters, plot, best moments.'},{head:'Plan your review structure',body:'Decide sections: Summary, Highlights, Lowlights, Rating out of 10.'},{head:'Write your review notes',body:'Write bullet points for each section to speak from.'},{head:'Decide: video or audio?',body:'Will you film yourself on the iPad or record audio with the microphone?'},{head:'Record your review',body:'Press record and talk through your review naturally using your notes.'},{head:'Give your rating',body:'End with your score out of 10 AND who you would recommend this season to.'}],finish:'📤 Share: Video or audio review played to the class',curriculum:['English — Speaking & Listening','English — Critical Thinking']},
   ninj6:{theme:'ninj',category:'📚 Real History',title:"Ninjago's Real-World Inspirations",desc:'Discover how much of Ninjago is based on real Japanese history!',steps:[{head:'Research real ninjas',body:'Look up: When did real ninjas live? What was their actual job?'},{head:'Research real ninja skills',body:'What skills did real ninjas train in? What weapons did they use?'},{head:'Research Japanese culture in Ninjago',body:'Look for: Japanese words used, traditional buildings, real martial arts shown.'},{head:'Create a comparison chart',body:'Make two columns: "Real Ninjas" vs "Ninjago Ninjas." Compare skills, weapons, home, purpose.'},{head:'Decide: fact or fiction?',body:'For each row mark Realistic or Very Made Up and explain the biggest difference.'},{head:'Write your conclusion',body:'Write a paragraph: "How much of Ninjago is based on real history?"'}],finish:'📤 Share: Comparison chart + written conclusion',curriculum:['History — Asia & the World','English — Research Skills','English — Writing']},
   ninj7:{theme:'ninj',category:'🎭 Storyboard',title:'Storyboard an Action Scene',desc:'Think like a filmmaker and plan out a Ninjago battle scene panel by panel!',steps:[{head:'Choose your scene',body:'Pick a battle or action scene from the show or one you have invented.'},{head:'Plan your panels',body:'Decide on 6–8 panels that will tell the story.'},{head:'Draw your panel grid',body:'Rule up your panels on paper — 6–8 boxes, like a comic.'},{head:'Draw each panel',body:'Fill in each panel. Action lines, simple figures and clear movement all work great.'},{head:'Add speech bubbles and sound effects',body:'What do characters say? Add speech bubbles and big bold sound effects.'},{head:'Add a title',body:'Give your storyboard an episode title at the top.'}],finish:'📤 Share: Photograph and display your storyboard',curriculum:['English — Creative Writing','Visual Arts','Media Arts']},
   plan1:{theme:'plan',category:'🔬 Experiment',title:'Which Design Flies Furthest?',desc:'Run a proper scientific experiment to find the champion paper plane design!',steps:[{head:'Choose your 3 designs',body:'Pick 3 different paper plane designs to test. Fold one of each.'},{head:'Set up your testing area',body:'Find an open space. Mark a throwing line with tape or chalk.'},{head:'Make a results table',body:'Draw a table: Design name across top, Throws 1–5 down side, Average at bottom.'},{head:'Test each plane 5 times',body:'Throw each plane 5 times and measure the distance each time. Record every result.'},{head:'Calculate the averages',body:'Add up all 5 results and divide by 5. Which plane has the highest average?'},{head:'Write your conclusion',body:'"My experiment showed that ___ flew furthest. I think this is because…"'}],finish:'📤 Share: Data table + bar graph + video',curriculum:['Science — Physical Sciences','Maths — Data Representation','Maths — Measurement']},
@@ -385,188 +496,136 @@ const investigations = {
   cros1:{theme:'cross',category:'🦕✈️ Dino + Planes',title:'Could a Pterodactyl Outfly Your Plane?',desc:'Combine your dinosaur knowledge and paper plane skills!',steps:[{head:'Research the pterosaurs',body:'Look up pterosaurs. Find the wingspan, estimated flying speed and how scientists think they flew.'},{head:'Get your best paper plane data',body:'Test your best paper plane 5 times and record how far and roughly how fast it travels.'},{head:'Make a comparison table',body:'Draw a table: Your Paper Plane vs Pterosaur. Compare wingspan, flight distance, speed.'},{head:'Decide the winner with evidence',body:'Write your verdict with numbers from your research and experiment to support it.'},{head:'Consider the surprises',body:'Were there any results that surprised you? Write down one unexpected finding.'},{head:'Create your display',body:'Make a comparison poster with your table, drawings and verdict at the bottom.'}],finish:'📤 Share: Comparison poster + recorded verdict',curriculum:['Science — Biological Sciences','Science — Physical Sciences','Maths — Data Representation']},
   cros2:{theme:'cross',category:'⚔️✈️ Ninjago + Planes',title:'Design a Ninja Glider',desc:'Combine Ninjago and paper planes to engineer a stealthy ninja aircraft!',steps:[{head:'Think about what a ninja glider needs',body:'Write down 4–5 design requirements: fast, quiet, accurate, able to carry a ninja.'},{head:'Sketch your design ideas',body:'Draw 2–3 different glider concepts on rough paper.'},{head:'Choose the best design and fold it',body:'Pick your favourite sketch and try to make it as a paper plane.'},{head:'Test and improve the flight',body:'Throw it several times. Is it stable? Make adjustments until it flies well.'},{head:'Design it visually',body:'Decorate your glider and draw a detailed design plan from multiple angles.'},{head:'Write the mission story',body:'Write a short story about a ninja using this glider on a secret mission.'}],finish:'📤 Share: Physical plane + design drawings + mission story',curriculum:['English — Creative Writing','Design & Technologies','Science — Physical Sciences']},
   cros3:{theme:'cross',category:'🦕⚔️ Dino + Ninjago',title:'Ninja vs Dinosaur — Who Wins?',desc:'Use your real dinosaur knowledge to write a scientific battle argument!',steps:[{head:'Choose your fighters',body:'Pick one Ninjago ninja and one dinosaur.'},{head:'Research your dinosaur real stats',body:'Find real facts: speed, size, bite force. Write them down as evidence.'},{head:'List the ninja abilities',body:'Write down the ninja element, special moves, weapons and any weaknesses.'},{head:'Write your battle argument',body:'Structure: Intro → Dinosaur advantages → Ninja advantages → Verdict.'},{head:'Support with evidence',body:'Add specific facts to back every claim. Numbers make arguments stronger.'},{head:'Perform or record it',body:'Read your argument out loud dramatically with different voices!'}],finish:'📤 Share: Written argument + dramatic recorded reading',curriculum:['English — Persuasive Writing','English — Speaking & Listening','Science — Biological Sciences']},
-  cros4:{theme:'cross',category:'🌟 All Three!',title:'My Ultimate Expert Presentation',desc:'This is your moment — share what you know better than almost anyone!',steps:[{head:'Choose your ONE topic',body:'Pick the one thing you know most about. The more specific the better.'},{head:'Brainstorm everything you know',body:'Write down everything without looking anything up. Fill the page!'},{head:'Research to fill the gaps',body:'Now look up the things you were unsure about. Add those to your notes.'},{head:'Choose your 5 best points',body:'From all your notes pick the 5 most impressive or surprising things.'},{head:'Choose your format and prepare',body:'Live talk? Scratch interactive? Screen recording? Google Slides? A combination?'},{head:'Present to the class',body:'You are the expert. Speak with confidence — you know more than most people here.'}],finish:'📤 Share: Your choice of format!',curriculum:['English — Speaking & Listening','English — Research Skills','English — Digital Literacy']},
-  cros5:{theme:'cross',category:'📰 All Three!',title:'The Dino-Ninja-Planes Newspaper',desc:'Become a reporter and editor — create your very own front page newspaper!',steps:[{head:'Plan your front page layout',body:'A newspaper has: a big title, a main headline and story, smaller stories and pictures. Sketch it first.'},{head:'Write your dinosaur article',body:'Choose an interesting dinosaur topic. Write a punchy headline and start with the most important fact.'},{head:'Write your Ninjago article',body:'Write a Ninjago article — maybe a review of the new season or a breaking news story!'},{head:'Write your paper planes article',body:'Write a planes article — a report on a record-breaking flight or a how-to guide.'},{head:'Add pictures and captions',body:'Draw or print an image for each article. Write a caption under each image.'},{head:'Assemble your front page',body:'Put it all together. Give your newspaper a name and add today date. You are the editor!'}],finish:'📤 Share: Print or photograph your finished newspaper',curriculum:['English — Writing','English — Media Literacy','Visual Arts']}
+  cros4:{theme:'cross',category:'🌟 All Three!',title:'My Ultimate Expert Presentation',desc:'This is your moment — share what you know better than almost anyone!',steps:[{head:'Choose your ONE topic',body:'Pick the one thing you know most about. The more specific the better.'},{head:'Brainstorm everything you know',body:'Write down everything without looking anything up. Fill the page!'},{head:'Research to fill the gaps',body:'Now look up the things you were unsure about. Add those to your notes.'},{head:'Choose your 5 best points',body:'From all your notes pick the 5 most impressive or surprising things.'},{head:'Choose your format and prepare',body:'Live talk? Screen recording? Google Slides? A combination?'},{head:'Present to the class',body:'You are the expert. Speak with confidence — you know more than most people here.'}],finish:'📤 Share: Your choice of format!',curriculum:['English — Speaking & Listening','English — Research Skills','English — Digital Literacy']},
+  cros5:{theme:'cross',category:'📰 All Three!',title:'The Dino-Ninja-Planes Newspaper',desc:'Become a reporter and editor — create your very own front page newspaper!',steps:[{head:'Plan your front page layout',body:'A newspaper has: a big title, a main headline and story, smaller stories and pictures. Sketch it first.'},{head:'Write your dinosaur article',body:'Choose an interesting dinosaur topic. Write a punchy headline and start with the most important fact.'},{head:'Write your Ninjago article',body:'Write a Ninjago article — maybe a review of the new season or a breaking news story!'},{head:'Write your paper planes article',body:'Write a planes article — a report on a record-breaking flight or a how-to guide.'},{head:'Add pictures and captions',body:'Draw or print an image for each article. Write a caption under each image.'},{head:'Assemble your front page',body:'Put it all together. Give your newspaper a name and add today\'s date. You are the editor!'}],finish:'📤 Share: Print or photograph your finished newspaper',curriculum:['English — Writing','English — Media Literacy','Visual Arts']}
 };
 
-// ═══ CURRICULUM CONTENT ═══
-const curriculumContent = [
-  {title:'English — Speaking & Listening (Year 3)',content:'Students plan, rehearse and deliver spoken presentations on topics of personal interest. Investigations involving podcasts, documentary narration and expert talks directly address AC9E3LY02 and AC9E3LY04.',tags:['Podcast','Documentary','Expert Talk','Review Show']},
-  {title:'English — Writing (Year 3)',content:'Students write for different purposes and audiences including informative, persuasive and creative texts. Field guides, quizzes, newspaper articles and creative stories map to AC9E3W01–AC9E3W04.',tags:['Field Guide','Quiz','Newspaper','Creative Writing','Storyboard']},
-  {title:'Science — Biological Sciences (Year 3)',content:'Living things can be grouped on the basis of observable features and can be distinguished from non-living things (ACSSU044). Dinosaur investigations directly address this strand with authentic inquiry.',tags:['Best Hunter','Field Guide','World Map','Timeline']},
-  {title:'Science — Physical Sciences (Year 3)',content:'A push or a pull affects how an object moves or changes shape (ACSSU033). Paper plane experiments directly address forces of motion, fair testing and data collection.',tags:['Which Flies Furthest','Forces of Flight','Paper Weight','Cargo Plane']},
-  {title:'Maths — Measurement & Data (Year 3)',content:'Students measure and compare lengths using scaled instruments. Recording, averaging and graphing paper plane distances maps to ACMMG061 and ACMSP069.',tags:['How Big Were They','Which Flies Furthest','World Records','Paper Weight']},
-  {title:'Geography — Place & Space (Year 3)',content:'Students describe the location of places and their environments. Dinosaur world map and Ninjago world map investigations develop spatial thinking and geographic skills.',tags:['Dino World Map','Map the Ninjago World','Famous Journeys']},
-  {title:'Design & Technologies (Year 3–4)',content:'Students investigate how products, services and environments are designed to meet community needs. Engineering-based investigations (cargo plane, new plane design) develop design thinking skills.',tags:['Invent a New Plane','Cargo Plane','Tutorial']}
+const curriculumContent=[
+  {title:'English — Speaking & Listening (Year 3)',content:'Students plan, rehearse and deliver spoken presentations on topics of personal interest. Podcast, documentary narration and expert talk investigations directly address AC9E3LY02 and AC9E3LY04.',tags:['Podcast','Documentary','Expert Talk','Review Show']},
+  {title:'English — Writing (Year 3)',content:'Students write for different purposes and audiences. Field guides, quizzes, newspaper articles and creative stories map to AC9E3W01–AC9E3W04.',tags:['Field Guide','Quiz','Newspaper','Creative Writing','Storyboard']},
+  {title:'Science — Biological Sciences (Year 3)',content:'Living things can be grouped on the basis of observable features (ACSSU044). Dinosaur investigations directly address this strand with authentic inquiry.',tags:['Best Hunter','Field Guide','World Map','Timeline']},
+  {title:'Science — Physical Sciences (Year 3)',content:'A push or a pull affects how an object moves (ACSSU033). Paper plane experiments directly address forces of motion, fair testing and data collection.',tags:['Which Flies Furthest','Forces of Flight','Paper Weight','Cargo Plane']},
+  {title:'Maths — Measurement & Data (Year 3)',content:'Students measure and compare lengths. Recording, averaging and graphing paper plane distances maps to ACMMG061 and ACMSP069.',tags:['How Big Were They','Which Flies Furthest','World Records','Paper Weight']},
+  {title:'Geography — Place & Space (Year 3)',content:'Students describe the location of places and their environments. Dinosaur world map and Ninjago world map investigations develop spatial thinking.',tags:['Dino World Map','Map the Ninjago World']},
+  {title:'Design & Technologies (Year 3–4)',content:'Students investigate how products are designed to meet needs. Engineering-based investigations develop design thinking skills.',tags:['Invent a New Plane','Cargo Plane','Tutorial']}
 ];
 
-// ═══ STATE ═══
-function loadState(){
-  try{return JSON.parse(localStorage.getItem('felix_state'))||{selected:[],progress:{},stepComments:{},stepTicks:{}};}
-  catch(e){return{selected:[],progress:{},stepComments:{},stepTicks:{}};}
-}
-function saveState(s){
-  localStorage.setItem('felix_state',JSON.stringify(s));
-  const ind=document.getElementById('saveIndicator');
-  ind.classList.add('show');
-  setTimeout(()=>ind.classList.remove('show'),1800);
-}
-let state=loadState();
-
-// ═══ CARD VISIBILITY ═══
+// ── CARD VISIBILITY ───────────────────────────────────────────
 function applyCardVisibility(){
-  const sel=state.selected;
-  const allIds=Object.keys(investigations);
-  const sections={dino:false,ninj:false,plan:false,cross:false};
-  allIds.forEach(id=>{
+  const state = window.getState ? window.getState() : window._state;
+  const sel = state.selected || [];
+  Object.keys(investigations).forEach(id=>{
     const el=document.querySelector(`.card[data-id="${id}"]`);
     if(!el)return;
     const theme=investigations[id].theme;
-    const sKey=theme==='cross'?'cross':theme;
     if(sel.length===0||sel.includes(id)){
       el.classList.remove('hidden-card');
-      sections[sKey]=true;
-      // update done badge
-      const ticks=state.stepTicks[id]||[];
+      const ticks=state.stepTicks&&state.stepTicks[id]?state.stepTicks[id]:[];
       const total=investigations[id].steps.length;
       const done=ticks.filter(Boolean).length;
       let badge=el.querySelector('.card-done-badge');
-      if(done===total&&total>0){
-        if(!badge){badge=document.createElement('div');badge.className='card-done-badge';el.appendChild(badge);}
-        badge.textContent='✅ Done!';
-      } else if(done>0){
-        if(!badge){badge=document.createElement('div');badge.className='card-done-badge';el.appendChild(badge);}
-        badge.style.background='#f4a261';badge.textContent=`Step ${done}/${total}`;
-      } else if(badge){badge.remove();}
-    } else {
-      el.classList.add('hidden-card');
-    }
+      if(done===total&&total>0){if(!badge){badge=document.createElement('div');badge.className='card-done-badge';el.appendChild(badge);}badge.textContent='✅ Done!';}
+      else if(done>0){if(!badge){badge=document.createElement('div');badge.className='card-done-badge';el.appendChild(badge);}badge.style.background='#f4a261';badge.textContent=`Step ${done}/${total}`;}
+      else if(badge){badge.remove();}
+    }else{el.classList.add('hidden-card');}
   });
-  // hide empty sections
-  const map={dino:'dino',ninj:'ninj',plan:'plan',cross:'cross'};
-  Object.entries(map).forEach(([k,cls])=>{
+  ['dino','ninj','plan','cross'].forEach(k=>{
     const sec=document.getElementById('sec-'+k);
     const cards=document.getElementById('cards-'+k);
     if(!sec||!cards)return;
     const visible=[...cards.querySelectorAll('.card:not(.hidden-card)')].length;
-    sec.style.display=visible?'':'none';
-    cards.style.display=visible?'':'none';
+    sec.style.display=visible?'':'none';cards.style.display=visible?'':'none';
   });
+  // hide loading overlay once ready
+  const lo=document.getElementById('loadingOverlay');
+  if(lo)lo.classList.add('hidden');
+  // update conn status
+  updateConnStatus();
 }
 
-// ═══ PIN ═══
-function openPIN(){
-  pinEntry='';
-  updatePinDots();
-  document.getElementById('pinError').textContent='';
-  document.getElementById('pinOverlay').classList.add('open');
+function updateConnStatus(){
+  const el=document.getElementById('connStatus');
+  if(!el)return;
+  const configured = typeof firebaseConfig !== 'undefined' && firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'PASTE_YOUR_API_KEY_HERE';
+  if(!configured){
+    el.textContent='⚠️ Local mode';el.style.background='#fff3cd';el.style.color='#b7770d';
+    document.getElementById('configBanner').classList.add('visible');
+  } else {
+    el.textContent='🟢 Live sync';el.style.background='#d8f3dc';el.style.color='#2d6a4f';
+  }
 }
+
+// ── PIN ───────────────────────────────────────────────────────
+function openPIN(){pinEntry='';updatePinDots();document.getElementById('pinError').textContent='';document.getElementById('pinOverlay').classList.add('open');}
 function closePIN(){document.getElementById('pinOverlay').classList.remove('open');pinEntry='';}
-function updatePinDots(){
-  for(let i=0;i<4;i++){
-    document.getElementById('pd'+i).classList.toggle('filled',i<pinEntry.length);
-  }
-}
+function updatePinDots(){for(let i=0;i<4;i++)document.getElementById('pd'+i).classList.toggle('filled',i<pinEntry.length);}
 function pinPress(val){
-  if(val==='back'){pinEntry=pinEntry.slice(0,-1);}
-  else if(val==='clear'){pinEntry='';}
-  else if(pinEntry.length<4){pinEntry+=val;}
-  updatePinDots();
-  document.getElementById('pinError').textContent='';
+  if(val==='back')pinEntry=pinEntry.slice(0,-1);
+  else if(val==='clear')pinEntry='';
+  else if(pinEntry.length<4)pinEntry+=val;
+  updatePinDots();document.getElementById('pinError').textContent='';
   if(pinEntry.length===4){
-    if(pinEntry===CORRECT_PIN){
-      closePIN();
-      openTeacher();
-    } else {
-      document.getElementById('pinError').textContent='Incorrect PIN. Try again.';
-      pinEntry='';
-      updatePinDots();
-    }
+    if(pinEntry===CORRECT_PIN){closePIN();openTeacher();}
+    else{document.getElementById('pinError').textContent='Incorrect PIN. Try again.';pinEntry='';updatePinDots();}
   }
 }
 
-// ═══ TEACHER PANEL ═══
-function openTeacher(){
-  buildInvSelector();
-  buildCurriculum();
-  buildProgressNotes();
-  document.getElementById('teacherOverlay').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeTeacher(){
-  document.getElementById('teacherOverlay').classList.remove('open');
-  document.body.style.overflow='';
-}
+// ── TEACHER PANEL ─────────────────────────────────────────────
+function openTeacher(){buildInvSelector();buildCurriculum();buildProgressNotes();document.getElementById('teacherOverlay').classList.add('open');document.body.style.overflow='hidden';}
+function closeTeacher(){document.getElementById('teacherOverlay').classList.remove('open');document.body.style.overflow='';}
 
 function buildInvSelector(){
-  const grid=document.getElementById('invSelectorGrid');
-  grid.innerHTML='';
+  const state=window.getState();
+  const grid=document.getElementById('invSelectorGrid');grid.innerHTML='';
   Object.entries(investigations).forEach(([id,inv])=>{
-    const isSelected=state.selected.includes(id);
-    const item=document.createElement('div');
-    item.className='inv-selector-item'+(isSelected?' selected':'');
-    item.innerHTML=`<input type="checkbox" id="sel_${id}" ${isSelected?'checked':''} onchange="toggleSelection('${id}')"><label for="sel_${id}">${inv.category}<br><strong>${inv.title}</strong></label>`;
+    const isSel=state.selected.includes(id);
+    const item=document.createElement('div');item.className='inv-selector-item'+(isSel?' selected':'');
+    item.innerHTML=`<input type="checkbox" id="sel_${id}" ${isSel?'checked':''} onchange="toggleSelection('${id}')"><label for="sel_${id}">${inv.category}<br><strong>${inv.title}</strong></label>`;
     grid.appendChild(item);
   });
   updateSelCount();
 }
 
 function toggleSelection(id){
-  const cb=document.getElementById('sel_'+id);
-  const item=cb.closest('.inv-selector-item');
+  const state=window.getState();
+  const cb=document.getElementById('sel_'+id);const item=cb.closest('.inv-selector-item');
   if(cb.checked){
     if(state.selected.length>=3){cb.checked=false;item.classList.remove('selected');alert('Maximum 3 investigations. Uncheck one first.');return;}
-    state.selected.push(id);
-    item.classList.add('selected');
-  } else {
-    state.selected=state.selected.filter(x=>x!==id);
-    item.classList.remove('selected');
-  }
+    state.selected.push(id);item.classList.add('selected');
+  }else{state.selected=state.selected.filter(x=>x!==id);item.classList.remove('selected');}
   updateSelCount();
 }
+function updateSelCount(){document.getElementById('selCount').textContent=window.getState().selected.length;}
 
-function updateSelCount(){
-  document.getElementById('selCount').textContent=state.selected.length;
-}
-
-function saveSelection(){
-  saveState(state);
+async function saveSelection(){
+  await window.saveState();
   applyCardVisibility();
-  alert(`✅ Done! ${state.selected.length===0?'All investigations are now visible.':state.selected.length+' investigation(s) are now shown to Felix.'}`);
+  const n=window.getState().selected.length;
+  alert(`✅ Saved! ${n===0?'All investigations are now visible to Felix.':n+' investigation(s) are now shown to Felix — synced to all devices.'}`);
 }
 
 function buildCurriculum(){
-  const grid=document.getElementById('curriculumGrid');
-  grid.innerHTML='';
+  const grid=document.getElementById('curriculumGrid');grid.innerHTML='';
   curriculumContent.forEach(c=>{
-    const div=document.createElement('div');
-    div.className='curriculum-item';
+    const div=document.createElement('div');div.className='curriculum-item';
     div.innerHTML=`<h4>${c.title}</h4><p>${c.content}</p><div style="margin-top:8px">${c.tags.map(t=>`<span class="curriculum-tag">${t}</span>`).join('')}</div>`;
     grid.appendChild(div);
   });
 }
 
 function buildProgressNotes(){
-  const sec=document.getElementById('progressNotesSection');
-  sec.innerHTML='';
-  const visibleIds=state.selected.length>0?state.selected:Object.keys(investigations);
-  visibleIds.forEach(id=>{
-    const inv=investigations[id];
-    const notes=state.progress[id]||[];
-    const div=document.createElement('div');
-    div.className='progress-section';
-    div.style.marginBottom='16px';
-    div.innerHTML=`
-      <h4>${inv.category} — ${inv.title}</h4>
-      <div class="progress-note-list" id="notes_${id}">
-        ${notes.map(n=>`<div class="progress-note"><div class="note-meta">${n.author} · ${n.date}</div><div>${n.text}</div></div>`).join('') || '<p style="font-size:0.82em;color:#aaa;">No notes yet.</p>'}
-      </div>
+  const state=window.getState();
+  const sec=document.getElementById('progressNotesSection');sec.innerHTML='';
+  const ids=state.selected.length>0?state.selected:Object.keys(investigations);
+  ids.forEach(id=>{
+    const inv=investigations[id];const notes=state.progress[id]||[];
+    const div=document.createElement('div');div.className='progress-section';
+    div.innerHTML=`<h4>${inv.category} — ${inv.title}</h4>
+      <div id="notes_${id}">${notes.map(n=>`<div class="progress-note"><div class="note-meta">${n.author} · ${n.date}</div><div>${n.text}</div></div>`).join('')||'<p style="font-size:0.82em;color:#aaa;margin-bottom:8px;">No notes yet.</p>'}</div>
       <div class="add-note-row">
         <textarea id="noteInput_${id}" placeholder="Add a progress note…"></textarea>
         <div class="add-note-col">
-          <select id="noteAuthor_${id}">
-            <option>Teacher</option><option>SSO</option><option>Leadership</option><option>Parent</option>
-          </select>
+          <select id="noteAuthor_${id}"><option>Teacher</option><option>SSO</option><option>Leadership</option><option>Parent</option></select>
           <button onclick="addNote('${id}')">Add Note</button>
         </div>
       </div>`;
@@ -574,60 +633,32 @@ function buildProgressNotes(){
   });
 }
 
-function addNote(id){
+async function addNote(id){
   const text=document.getElementById('noteInput_'+id).value.trim();
   const author=document.getElementById('noteAuthor_'+id).value;
   if(!text)return;
+  const state=window.getState();
   if(!state.progress[id])state.progress[id]=[];
-  const note={text,author,date:new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})};
-  state.progress[id].push(note);
-  saveState(state);
+  state.progress[id].push({text,author,date:new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})});
+  await window.saveState();
   buildProgressNotes();
 }
 
-// ═══ STUDENT MODAL ═══
+// ── STUDENT MODAL ─────────────────────────────────────────────
 function openModal(id){
-  const inv=investigations[id];
-  if(!inv)return;
-  currentModalId=id;
+  const inv=investigations[id];if(!inv)return;
+  window._currentModalId=id;
+  const state=window.getState();
   const t=inv.theme;
   document.getElementById('modalTop').className='modal-top '+t;
   document.getElementById('modalCategory').textContent=inv.category;
   document.getElementById('modalTitle').textContent=inv.title;
   document.getElementById('modalDesc').textContent=inv.desc;
 
-  const ticks=state.stepTicks[id]||(state.stepTicks[id]=[...Array(inv.steps.length)].map(()=>false));
-  const comments=state.stepComments[id]||(state.stepComments[id]=inv.steps.map(()=>[]));
+  if(!state.stepTicks[id])state.stepTicks[id]=[...Array(inv.steps.length)].map(()=>false);
+  if(!state.stepComments[id])state.stepComments[id]=inv.steps.map(()=>[]);
 
-  const stepsEl=document.getElementById('modalSteps');
-  stepsEl.innerHTML='';
-  inv.steps.forEach((s,i)=>{
-    const li=document.createElement('li');
-    li.className=`step ${t}-step${ticks[i]?' completed':''}`;
-    li.id=`step_${id}_${i}`;
-
-    const stepComments=comments[i]||[];
-    const commentsHTML=stepComments.map(c=>`<div class="step-comment-item"><div class="comment-meta">${c.author} · ${c.date}</div><div class="comment-text">${c.text}</div></div>`).join('');
-
-    li.innerHTML=`
-      <div class="step-header">
-        <div class="step-tick ${ticks[i]?'ticked':''}" id="tick_${id}_${i}" onclick="tickStep('${id}',${i})"></div>
-        <div class="step-num">${i+1}</div>
-        <div class="step-text"><strong>${s.head}</strong><span>${s.body}</span></div>
-      </div>
-      <div class="step-comments" id="comments_${id}_${i}">${commentsHTML}</div>
-      <div class="add-comment-area" id="addComment_${id}_${i}">
-        <textarea placeholder="Add a comment about this step…" id="commentInput_${id}_${i}"></textarea>
-        <div class="comment-controls">
-          <select class="comment-author-select" id="commentAuthor_${id}_${i}">
-            <option>Teacher</option><option>SSO</option><option>Leadership</option><option>Parent</option>
-          </select>
-          <button class="save-comment-btn" onclick="saveComment('${id}',${i})">Save Comment</button>
-          <button class="cancel-comment-btn" onclick="cancelComment('${id}',${i})">Cancel</button>
-        </div>
-      </div>`;
-    stepsEl.appendChild(li);
-  });
+  renderSteps(id, inv, state);
 
   const fin=document.getElementById('modalFinish');
   fin.className='finish-box '+t;
@@ -638,124 +669,109 @@ function openModal(id){
   setTimeout(()=>document.getElementById('modal').focus(),50);
 }
 
-function tickStep(id,i){
+function renderSteps(id, inv, state){
+  const ticks=state.stepTicks[id]||[];
+  const comments=state.stepComments[id]||[];
+  const stepsEl=document.getElementById('modalSteps');
+  stepsEl.innerHTML='';
+  const t=inv.theme;
+  inv.steps.forEach((s,i)=>{
+    const li=document.createElement('li');
+    li.className=`step ${t}-step${ticks[i]?' completed':''}`;
+    li.id=`step_${id}_${i}`;
+    const sc=comments[i]||[];
+    li.innerHTML=`
+      <div class="step-header">
+        <div class="step-tick ${ticks[i]?'ticked':''}" id="tick_${id}_${i}" onclick="tickStep('${id}',${i})"></div>
+        <div class="step-num">${i+1}</div>
+        <div class="step-text"><strong>${s.head}</strong><span>${s.body}</span></div>
+      </div>
+      <div class="step-comments" id="comments_${id}_${i}">
+        ${sc.map(c=>`<div class="step-comment-item"><div class="comment-meta">${c.author} · ${c.date}</div><div class="comment-text">${c.text}</div></div>`).join('')}
+      </div>
+      <div class="add-comment-area" id="addComment_${id}_${i}">
+        <textarea placeholder="Add a comment about this step…" id="commentInput_${id}_${i}"></textarea>
+        <div class="comment-controls">
+          <select class="comment-author-select" id="commentAuthor_${id}_${i}"><option>Teacher</option><option>SSO</option><option>Leadership</option><option>Parent</option></select>
+          <button class="save-comment-btn" onclick="saveComment('${id}',${i})">Save Comment</button>
+          <button class="cancel-comment-btn" onclick="cancelComment('${id}',${i})">Cancel</button>
+        </div>
+      </div>`;
+    stepsEl.appendChild(li);
+  });
+}
+
+// Called by live sync listener when modal is open
+function refreshModalState(id){
+  const inv=investigations[id];if(!inv)return;
+  const state=window.getState();
+  renderSteps(id, inv, state);
+}
+
+async function tickStep(id,i){
+  const state=window.getState();
   if(!state.stepTicks[id])state.stepTicks[id]=[...Array(investigations[id].steps.length)].map(()=>false);
   state.stepTicks[id][i]=!state.stepTicks[id][i];
-  saveState(state);
-  // update UI
   const tick=document.getElementById(`tick_${id}_${i}`);
   const step=document.getElementById(`step_${id}_${i}`);
-  tick.classList.toggle('ticked',state.stepTicks[id][i]);
-  step.classList.toggle('completed',state.stepTicks[id][i]);
+  if(tick)tick.classList.toggle('ticked',state.stepTicks[id][i]);
+  if(step)step.classList.toggle('completed',state.stepTicks[id][i]);
   applyCardVisibility();
-  // show comment box if ticked
-  const commentArea=document.getElementById(`addComment_${id}_${i}`);
-  if(state.stepTicks[id][i]){commentArea.style.display='block';}
+  if(state.stepTicks[id][i]){const ca=document.getElementById(`addComment_${id}_${i}`);if(ca)ca.style.display='block';}
+  await window.saveState();
 }
 
 function cancelComment(id,i){
-  document.getElementById(`addComment_${id}_${i}`).style.display='none';
-  document.getElementById(`commentInput_${id}_${i}`).value='';
+  const ca=document.getElementById(`addComment_${id}_${i}`);if(ca)ca.style.display='none';
+  const ci=document.getElementById(`commentInput_${id}_${i}`);if(ci)ci.value='';
 }
 
-function saveComment(id,i){
+async function saveComment(id,i){
   const text=document.getElementById(`commentInput_${id}_${i}`).value.trim();
   const author=document.getElementById(`commentAuthor_${id}_${i}`).value;
   if(!text){cancelComment(id,i);return;}
+  const state=window.getState();
   if(!state.stepComments[id])state.stepComments[id]=investigations[id].steps.map(()=>[]);
   if(!state.stepComments[id][i])state.stepComments[id][i]=[];
   const comment={text,author,date:new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})};
   state.stepComments[id][i].push(comment);
-  saveState(state);
-  // update comment display
+  await window.saveState();
   const commentsDiv=document.getElementById(`comments_${id}_${i}`);
-  const commentEl=document.createElement('div');
-  commentEl.className='step-comment-item';
-  commentEl.innerHTML=`<div class="comment-meta">${comment.author} · ${comment.date}</div><div class="comment-text">${comment.text}</div>`;
-  commentsDiv.appendChild(commentEl);
+  if(commentsDiv){
+    const el=document.createElement('div');el.className='step-comment-item';
+    el.innerHTML=`<div class="comment-meta">${comment.author} · ${comment.date}</div><div class="comment-text">${comment.text}</div>`;
+    commentsDiv.appendChild(el);
+  }
   cancelComment(id,i);
 }
 
-// ═══ DOWNLOAD SUMMARY ═══
+// ── DOWNLOAD SUMMARY ─────────────────────────────────────────
 function downloadSummary(){
-  const id=currentModalId;
-  if(!id)return;
+  const id=window._currentModalId;if(!id)return;
   const inv=investigations[id];
+  const state=window.getState();
   const ticks=state.stepTicks[id]||[];
   const comments=state.stepComments[id]||[];
   const notes=state.progress[id]||[];
-  const completedCount=ticks.filter(Boolean).length;
-
-  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Project Summary — ${inv.title}</title>
-  <style>
-    body{font-family:Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 20px;color:#1a1a2e;}
-    h1{color:#2d6a4f;border-bottom:3px solid #2d6a4f;padding-bottom:10px;}
-    h2{color:#1d3557;margin-top:28px;font-size:1.1em;}
-    .meta{background:#f5f5f5;border-radius:10px;padding:14px;margin:16px 0;font-size:0.9em;}
-    .step-row{border:1px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:10px;}
-    .step-row.done{border-color:#28a745;background:#f0faf4;}
-    .step-title{font-weight:bold;margin-bottom:4px;}
-    .step-status{font-size:0.8em;color:#28a745;font-weight:bold;}
-    .comment-item{background:#fff3cd;border-radius:6px;padding:8px 12px;margin-top:6px;font-size:0.85em;}
-    .comment-meta{font-weight:bold;color:#666;font-size:0.85em;}
-    .curriculum-item{background:#e8eaf6;border-radius:6px;padding:6px 12px;margin-bottom:6px;font-size:0.88em;}
-    .note-item{background:#e8f4fd;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:0.88em;}
-    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:0.8em;color:#aaa;}
-    @media print{body{margin:20px;}}
-  </style></head><body>
+  const done=ticks.filter(Boolean).length;
+  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Project Summary — ${inv.title}</title><style>body{font-family:Arial,sans-serif;max-width:750px;margin:40px auto;padding:0 20px;color:#1a1a2e;}h1{color:#2d6a4f;border-bottom:3px solid #2d6a4f;padding-bottom:10px;}h2{color:#1d3557;margin-top:28px;font-size:1.1em;}.meta{background:#f5f5f5;border-radius:10px;padding:14px;margin:16px 0;font-size:0.9em;}.step-row{border:1px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:10px;}.step-row.done{border-color:#28a745;background:#f0faf4;}.step-title{font-weight:bold;margin-bottom:4px;}.step-status{font-size:0.8em;color:#28a745;font-weight:bold;}.comment-item{background:#fff3cd;border-radius:6px;padding:8px 12px;margin-top:6px;font-size:0.85em;}.comment-meta{font-weight:bold;color:#666;font-size:0.85em;}.curriculum-item{background:#e8eaf6;border-radius:6px;padding:6px 12px;margin-bottom:6px;font-size:0.88em;}.note-item{background:#e8f4fd;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:0.88em;}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:0.8em;color:#aaa;}@media print{body{margin:20px;}}</style></head><body>
   <h1>📋 Project Summary — ${STUDENT_NAME}</h1>
-  <div class="meta">
-    <strong>Investigation:</strong> ${inv.title}<br>
-    <strong>Category:</strong> ${inv.category}<br>
-    <strong>Date printed:</strong> ${new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<br>
-    <strong>Steps completed:</strong> ${completedCount} of ${inv.steps.length}
-  </div>
-
+  <div class="meta"><strong>Investigation:</strong> ${inv.title}<br><strong>Category:</strong> ${inv.category}<br><strong>Date printed:</strong> ${new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<br><strong>Steps completed:</strong> ${done} of ${inv.steps.length}</div>
   <h2>🪜 Steps & Progress</h2>`;
-
-  inv.steps.forEach((s,i)=>{
-    const done=ticks[i];
-    const stepComments=comments[i]||[];
-    html+=`<div class="step-row ${done?'done':''}">
-      <div class="step-title">${i+1}. ${s.head} ${done?'<span class="step-status">✓ Completed</span>':''}</div>
-      <div style="font-size:0.88em;color:#555;margin-top:3px;">${s.body}</div>
-      ${stepComments.map(c=>`<div class="comment-item"><div class="comment-meta">${c.author} · ${c.date}</div>${c.text}</div>`).join('')}
-    </div>`;
-  });
-
-  html+=`<h2>📚 Curriculum Links</h2>`;
-  inv.curriculum.forEach(c=>{html+=`<div class="curriculum-item">✓ ${c}</div>`;});
-
-  if(notes.length>0){
-    html+=`<h2>📝 Progress Notes</h2>`;
-    notes.forEach(n=>{html+=`<div class="note-item"><div class="comment-meta">${n.author} · ${n.date}</div>${n.text}</div>`;});
-  }
-
-  html+=`<h2>🎯 Project Goal</h2><p>${inv.finish}</p>
-  <div class="footer">Generated from Felix's Investigation Station · ${new Date().toLocaleDateString('en-AU')}</div>
-  </body></html>`;
-
-  const blob=new Blob([html],{type:'text/html'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=`Felix_${inv.title.replace(/[^a-zA-Z0-9]/g,'_')}_Summary.html`;
-  a.click();
-  URL.revokeObjectURL(url);
+  inv.steps.forEach((s,i)=>{const d=ticks[i];const sc=comments[i]||[];html+=`<div class="step-row ${d?'done':''}"><div class="step-title">${i+1}. ${s.head} ${d?'<span class="step-status">✓ Completed</span>':''}</div><div style="font-size:0.88em;color:#555;margin-top:3px;">${s.body}</div>${sc.map(c=>`<div class="comment-item"><div class="comment-meta">${c.author} · ${c.date}</div>${c.text}</div>`).join('')}</div>`;});
+  html+=`<h2>📚 Curriculum Links</h2>`;inv.curriculum.forEach(c=>{html+=`<div class="curriculum-item">✓ ${c}</div>`;});
+  if(notes.length>0){html+=`<h2>📝 Progress Notes</h2>`;notes.forEach(n=>{html+=`<div class="note-item"><div class="comment-meta">${n.author} · ${n.date}</div>${n.text}</div>`;});}
+  html+=`<h2>🎯 Project Goal</h2><p>${inv.finish}</p><div class="footer">Generated from Felix's Investigation Station · ${new Date().toLocaleDateString('en-AU')}</div></body></html>`;
+  const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Felix_${inv.title.replace(/[^a-zA-Z0-9]/g,'_')}_Summary.html`;a.click();URL.revokeObjectURL(url);
 }
 
-function closeModal(){
-  document.getElementById('modalOverlay').classList.remove('open');
-  document.body.style.overflow='';
-  currentModalId=null;
-  applyCardVisibility();
-}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');document.body.style.overflow='';window._currentModalId=null;applyCardVisibility();}
 function closeIfBackground(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeTeacher();closePIN();}});
 document.querySelectorAll('.card').forEach(c=>{c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click();}});});
 
-// INIT
-applyCardVisibility();
+// Show loading until Firebase initialises (max 4s fallback)
+setTimeout(()=>{const lo=document.getElementById('loadingOverlay');if(lo)lo.classList.add('hidden');}, 4000);
 </script>
 </body>
 </html>
