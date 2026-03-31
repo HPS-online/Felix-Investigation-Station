@@ -115,6 +115,7 @@ function startLiveSync(){
     // if a modal is open, refresh its ticks/comments
     if(window._currentModalId){
       refreshModalState(window._currentModalId);
+      renderAttachments(window._currentModalId);
     }
   });
 }
@@ -258,6 +259,33 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
 .finish-icon{font-size:1.5em;flex-shrink:0;}
 .download-btn{display:flex;align-items:center;gap:8px;margin-top:14px;background:#1d3557;color:white;border:none;border-radius:12px;padding:10px 20px;font-family:'Nunito',sans-serif;font-size:0.88em;font-weight:700;cursor:pointer;}
 .download-btn:hover{background:#2c4a7c;}
+
+/* ── WORK ATTACHMENTS ── */
+.attachments-section{margin-top:20px;border-top:2px dashed #e0e0e0;padding-top:18px;display:none;}
+.attachments-section.adult-visible{display:block;}
+.attachments-heading{font-family:'Fredoka One',cursive;font-size:1.05em;color:var(--text);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.attachments-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px;}
+.attachment-item{background:#f8f8f8;border:2px solid #e0e0e0;border-radius:12px;overflow:hidden;position:relative;}
+.attachment-item a{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:var(--text);padding:12px 10px;gap:6px;}
+.attachment-item .att-icon{font-size:2em;}
+.attachment-item .att-label{font-size:0.78em;font-weight:700;text-align:center;word-break:break-word;color:#444;line-height:1.3;}
+.att-type{font-size:0.68em;font-weight:800;text-transform:uppercase;letter-spacing:1px;padding:2px 8px;border-radius:10px;margin-top:2px;}
+.att-type.pdf{background:#fdecea;color:#c0392b;}
+.att-type.img{background:#e8f4fd;color:#1d3557;}
+.att-type.link{background:#e8f8f5;color:#27635a;}
+.att-type.video{background:#f5eef8;color:#6c3483;}
+.attachment-delete{position:absolute;top:5px;right:5px;background:rgba(0,0,0,0.1);border:none;border-radius:50%;width:22px;height:22px;font-size:0.72em;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#666;transition:background 0.15s;}
+.attachment-delete:hover{background:rgba(200,0,0,0.2);color:#c0392b;}
+.attach-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.attach-btn{display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 14px;border-radius:12px;border:2px dashed #ccc;background:#fafafa;font-family:'Nunito',sans-serif;font-size:0.85em;font-weight:700;color:#666;cursor:pointer;transition:all 0.18s;text-align:center;}
+.attach-btn:hover{border-color:#2d6a4f;color:#2d6a4f;background:#d8f3dc;}
+.link-row{grid-column:span 2;display:flex;flex-direction:column;gap:6px;margin-top:2px;}
+.link-row-inputs{display:flex;gap:8px;}
+.link-row input{flex:1;border:2px solid #e0e0e0;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-size:0.84em;}
+.link-row input:focus{outline:none;border-color:var(--gold);}
+.link-save-btn{background:#2d6a4f;color:white;border:none;border-radius:10px;padding:8px 16px;font-family:'Nunito',sans-serif;font-size:0.84em;font-weight:700;cursor:pointer;white-space:nowrap;}
+.link-save-btn:hover{background:#1e4d38;}
+.file-size-note{font-size:0.75em;color:#aaa;grid-column:span 2;}
 
 /* TEACHER PANEL */
 .teacher-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,40,0.7);z-index:2000;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px);}
@@ -406,6 +434,27 @@ header p{font-size:1.05em;opacity:0.9;max-width:560px;margin:0 auto;font-weight:
       <ul class="steps" id="modalSteps"></ul>
       <div class="finish-box" id="modalFinish"></div>
       <button class="download-btn" onclick="downloadSummary()">📄 Download Project Summary</button>
+
+      <!-- WORK ATTACHMENTS — shown to adults only after PIN -->
+      <div class="attachments-section" id="attachmentsSection">
+        <div class="attachments-heading">📎 Felix's Work</div>
+        <div class="attachments-grid" id="attachmentsGrid"></div>
+        <div class="attach-controls" id="attachControls">
+          <label class="attach-btn" title="Upload a PDF or image file (max 4MB)">
+            📄 Attach PDF or Image
+            <input type="file" accept="image/*,.pdf" onchange="handleFileAttach(event)">
+          </label>
+          <div class="file-size-note">Max file size: 4MB. PDFs and images (JPG, PNG) supported.</div>
+          <div class="link-row">
+            <div style="font-size:0.82em;font-weight:700;color:#666;margin-bottom:2px;">🔗 Add a YouTube or Drive link</div>
+            <div class="link-row-inputs">
+              <input type="text" id="linkLabelInput" placeholder="Label (e.g. Felix's verdict video)">
+              <input type="text" id="linkUrlInput" placeholder="Paste URL here…">
+              <button class="link-save-btn" onclick="handleLinkAttach()">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -579,8 +628,22 @@ function pinPress(val){
 }
 
 // ── TEACHER PANEL ─────────────────────────────────────────────
-function openTeacher(){buildInvSelector();buildCurriculum();buildProgressNotes();document.getElementById('teacherOverlay').classList.add('open');document.body.style.overflow='hidden';}
-function closeTeacher(){document.getElementById('teacherOverlay').classList.remove('open');document.body.style.overflow='';}
+function openTeacher(){
+  _adultUnlocked = true;
+  buildInvSelector();
+  buildCurriculum();
+  buildProgressNotes();
+  document.getElementById('teacherOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  // If a modal is open, reveal its attachment panel
+  if(window._currentModalId) showAttachmentsPanel();
+}
+function closeTeacher(){
+  document.getElementById('teacherOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  // Keep adult unlocked for this session so attachment panel stays visible
+  // if modal is open — they can still add work without re-entering PIN
+}
 
 function buildInvSelector(){
   const state=window.getState();
@@ -667,6 +730,11 @@ function openModal(id){
   if(!state.stepComments[id])state.stepComments[id]=inv.steps.map(()=>[]);
 
   renderSteps(id, inv, state);
+  renderAttachments(id);
+
+  // show attachment panel if adult is currently unlocked
+  if(_adultUnlocked) showAttachmentsPanel();
+  else hideAttachmentsPanel();
 
   const fin=document.getElementById('modalFinish');
   fin.className='finish-box '+t;
@@ -767,11 +835,175 @@ function downloadSummary(){
   inv.steps.forEach((s,i)=>{const d=ticks[i];const sc=comments[i]||[];html+=`<div class="step-row ${d?'done':''}"><div class="step-title">${i+1}. ${s.head} ${d?'<span class="step-status">✓ Completed</span>':''}</div><div style="font-size:0.88em;color:#555;margin-top:3px;">${s.body}</div>${sc.map(c=>`<div class="comment-item"><div class="comment-meta">${c.author} · ${c.date}</div>${c.text}</div>`).join('')}</div>`;});
   html+=`<h2>📚 Curriculum Links</h2>`;inv.curriculum.forEach(c=>{html+=`<div class="curriculum-item">✓ ${c}</div>`;});
   if(notes.length>0){html+=`<h2>📝 Progress Notes</h2>`;notes.forEach(n=>{html+=`<div class="note-item"><div class="comment-meta">${n.author} · ${n.date}</div>${n.text}</div>`;});}
-  html+=`<h2>🎯 Project Goal</h2><p>${inv.finish}</p><div class="footer">Generated from Felix's Investigation Station · ${new Date().toLocaleDateString('en-AU')}</div></body></html>`;
+  html+=`<h2>🎯 Project Goal</h2><p>${inv.finish}</p>`;
+
+  // Attachments
+  const attachments=(state.attachments&&state.attachments[id])||[];
+  if(attachments.length>0){
+    html+=`<h2>📎 Felix's Work</h2><div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">`;
+    attachments.forEach(att=>{
+      const isYT=att.url&&(att.url.includes('youtube')||att.url.includes('youtu.be'));
+      if(att.type==='link'||att.type==='video'){
+        html+=`<div style="border:2px solid #e0e0e0;border-radius:10px;padding:10px 14px;background:#f8f8f8;max-width:300px;"><div style="font-size:0.82em;font-weight:700;color:#6c3483;margin-bottom:4px;">${isYT?'▶️ Video':'🔗 Link'}</div><a href="${att.url}" target="_blank" style="font-size:0.88em;color:#1d3557;word-break:break-all;">${att.label}</a><div style="font-size:0.75em;color:#aaa;margin-top:3px;">Added ${att.addedDate||''}</div></div>`;
+      }else if(att.type==='pdf'){
+        html+=`<div style="border:2px solid #e0e0e0;border-radius:10px;padding:10px 14px;background:#f8f8f8;max-width:200px;text-align:center;"><div style="font-size:2em;">📄</div><div style="font-size:0.82em;font-weight:700;color:#c0392b;margin:4px 0;">${att.label}</div><a href="${att.data}" target="_blank" style="font-size:0.8em;color:#1d3557;">Open PDF</a><div style="font-size:0.72em;color:#aaa;margin-top:3px;">Added ${att.addedDate||''}</div></div>`;
+      }else{
+        html+=`<div style="border:2px solid #e0e0e0;border-radius:10px;overflow:hidden;max-width:280px;"><img src="${att.data}" style="width:100%;display:block;" alt="${att.label}"><div style="padding:6px 10px;font-size:0.8em;font-weight:700;color:#444;">${att.label}</div></div>`;
+      }
+    });
+    html+=`</div>`;
+  }
+
+  html+=`<div class="footer">Generated from Felix's Investigation Station · ${new Date().toLocaleDateString('en-AU')}</div></body></html>`;
   const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Felix_${inv.title.replace(/[^a-zA-Z0-9]/g,'_')}_Summary.html`;a.click();URL.revokeObjectURL(url);
 }
 
-function closeModal(){document.getElementById('modalOverlay').classList.remove('open');document.body.style.overflow='';window._currentModalId=null;applyCardVisibility();}
+// ═══ ATTACHMENTS ═══════════════════════════════════════════════
+
+// Show/hide attachment panel based on whether adult is unlocked
+let _adultUnlocked = false;
+
+function showAttachmentsPanel(){
+  const sec = document.getElementById('attachmentsSection');
+  if(sec) sec.classList.add('adult-visible');
+}
+function hideAttachmentsPanel(){
+  const sec = document.getElementById('attachmentsSection');
+  if(sec) sec.classList.remove('adult-visible');
+  _adultUnlocked = false;
+}
+
+function renderAttachments(id){
+  const state = window.getState();
+  const attachments = (state.attachments && state.attachments[id]) || [];
+  const grid = document.getElementById('attachmentsGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+
+  if(attachments.length === 0){
+    grid.innerHTML = '<p style="font-size:0.82em;color:#aaa;grid-column:span 3;">No work attached yet. Use the buttons below to add Felix\'s work.</p>';
+    return;
+  }
+
+  attachments.forEach((att, idx) => {
+    const item = document.createElement('div');
+    item.className = 'attachment-item';
+
+    let icon, typeLabel, href, typeClass;
+    if(att.type === 'link' || att.type === 'video'){
+      const isYT = att.url && (att.url.includes('youtube') || att.url.includes('youtu.be'));
+      icon = isYT ? '▶️' : '🔗';
+      typeLabel = isYT ? 'Video' : 'Link';
+      typeClass = isYT ? 'video' : 'link';
+      href = att.url;
+    } else if(att.type === 'pdf'){
+      icon = '📄';typeLabel = 'PDF';typeClass = 'pdf';
+      href = att.data; // base64 data URL
+    } else {
+      icon = '🖼️';typeLabel = 'Image';typeClass = 'img';
+      href = att.data;
+    }
+
+    item.innerHTML = `
+      <a href="${href}" target="_blank" rel="noopener">
+        <span class="att-icon">${icon}</span>
+        <span class="att-label">${att.label || typeLabel}</span>
+        <span class="att-type ${typeClass}">${typeLabel}</span>
+      </a>
+      <button class="attachment-delete" onclick="deleteAttachment('${id}',${idx})" title="Remove this attachment">✕</button>`;
+    grid.appendChild(item);
+  });
+}
+
+async function handleFileAttach(event){
+  const id = window._currentModalId; if(!id) return;
+  const file = event.target.files[0]; if(!file) return;
+  event.target.value = ''; // reset input
+
+  // 4MB limit
+  if(file.size > 4 * 1024 * 1024){
+    alert('File is too large. Please use a file under 4MB. For videos, use YouTube instead.');
+    return;
+  }
+
+  const isPDF = file.type === 'application/pdf';
+  const isImage = file.type.startsWith('image/');
+  if(!isPDF && !isImage){
+    alert('Please attach a PDF or image file (JPG, PNG, etc.).');
+    return;
+  }
+
+  // Show uploading feedback
+  const grid = document.getElementById('attachmentsGrid');
+  const uploading = document.createElement('p');
+  uploading.style.cssText = 'font-size:0.82em;color:#888;font-style:italic;grid-column:span 3;';
+  uploading.textContent = '⏳ Reading file…';
+  grid.appendChild(uploading);
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const state = window.getState();
+    if(!state.attachments) state.attachments = {};
+    if(!state.attachments[id]) state.attachments[id] = [];
+
+    state.attachments[id].push({
+      type: isPDF ? 'pdf' : 'image',
+      label: file.name.replace(/\.[^.]+$/, ''), // filename without extension
+      data: e.target.result, // base64 data URL
+      addedDate: new Date().toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'})
+    });
+
+    await window.saveState();
+    renderAttachments(id);
+  };
+  reader.onerror = () => { alert('Could not read file. Please try again.'); uploading.remove(); };
+  reader.readAsDataURL(file);
+}
+
+async function handleLinkAttach(){
+  const id = window._currentModalId; if(!id) return;
+  const labelEl = document.getElementById('linkLabelInput');
+  const urlEl   = document.getElementById('linkUrlInput');
+  const url   = urlEl.value.trim();
+  const label = labelEl.value.trim() || url;
+
+  if(!url){ alert('Please paste a URL first.'); return; }
+  if(!url.startsWith('http')){ alert('Please enter a valid URL starting with http:// or https://'); return; }
+
+  const state = window.getState();
+  if(!state.attachments) state.attachments = {};
+  if(!state.attachments[id]) state.attachments[id] = [];
+
+  const isYT = url.includes('youtube') || url.includes('youtu.be');
+  state.attachments[id].push({
+    type: isYT ? 'video' : 'link',
+    label,
+    url,
+    addedDate: new Date().toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'})
+  });
+
+  labelEl.value = '';
+  urlEl.value = '';
+  await window.saveState();
+  renderAttachments(id);
+}
+
+async function deleteAttachment(id, idx){
+  if(!confirm('Remove this attachment?')) return;
+  const state = window.getState();
+  if(state.attachments && state.attachments[id]){
+    state.attachments[id].splice(idx, 1);
+    await window.saveState();
+    renderAttachments(id);
+  }
+}
+
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+  window._currentModalId=null;
+  applyCardVisibility();
+}
 function closeIfBackground(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeTeacher();closePIN();}});
 document.querySelectorAll('.card').forEach(c=>{c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click();}});});
