@@ -840,207 +840,317 @@ async function downloadPDF(){
   const attachments=(state.attachments&&state.attachments[id])||[];
 
   const btn=document.querySelector('.pdf-btn');
-  if(btn){btn.textContent='⏳ Generating PDF…';btn.disabled=true;}
+  if(btn){btn.textContent='Generating PDF...';btn.disabled=true;}
+
+  // Strip emoji and special chars that jsPDF cannot render
+  function clean(str){
+    return String(str||'')
+      .replace(/[\u{1F300}-\u{1FFFF}]/gu,'')  // emoji block
+      .replace(/[^\x00-\xFF]/g,'')              // non-latin
+      .replace(/\s+/g,' ').trim();
+  }
+
+  // Strip the category label prefix (e.g. "Science" from "🔬 Science")
+  function cleanCategory(cat){
+    return clean(cat).replace(/^\s*\S+\s*/,'').trim()||clean(cat);
+  }
 
   try{
     const {jsPDF}=window.jspdf;
     const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
 
-    const pageW=210;const margin=18;const contentW=pageW-(margin*2);
+    const pageW=210;const margin=16;const contentW=pageW-(margin*2);
     let y=margin;
-    const lineH=6;
 
-    // Colours
-    const green=[45,106,79];const navy=[29,53,87];const grey=[80,80,80];
-    const lightGrey=[240,240,240];const doneGreen=[240,250,244];
-    const commentYellow=[255,243,205];const blueNote=[232,244,253];
+    // Colour palette
+    const green   =[45,106,79];
+    const navy    =[29,53,87];
+    const grey    =[90,90,90];
+    const lgrey   =[245,245,245];
+    const doneGrn =[237,250,242];
+    const doneStr =[40,167,69];
+    const cmtBg   =[255,249,219];
+    const cmtBdr  =[210,185,80];
+    const noteBg  =[235,245,255];
+    const purp    =[90,50,130];
 
-    // Helper — add text with word wrap, returns new y
-    function addText(text,x,yPos,opts={}){
-      const size=opts.size||10;const colour=opts.colour||[30,30,30];
-      const bold=opts.bold||false;const maxW=opts.maxW||contentW;
-      doc.setFontSize(size);doc.setTextColor(...colour);
-      doc.setFont('helvetica',bold?'bold':'normal');
-      const lines=doc.splitTextToSize(String(text),maxW);
-      lines.forEach(line=>{
-        if(yPos>280){doc.addPage();yPos=margin;}
-        doc.text(line,x,yPos);yPos+=size*0.4;
-      });
-      return yPos+2;
-    }
+    // ── HELPERS ──────────────────────────────────────────────
 
-    function checkPage(yPos,needed=20){
-      if(yPos+needed>285){doc.addPage();return margin;}
+    function checkPage(yPos,needed){
+      if(yPos+(needed||20)>284){doc.addPage();return margin;}
       return yPos;
     }
 
-    function sectionHeading(text,yPos,colour=navy){
-      yPos=checkPage(yPos,14);
-      doc.setFillColor(...colour);
-      doc.rect(margin,yPos-4,contentW,10,'F');
-      doc.setFontSize(11);doc.setTextColor(255,255,255);
-      doc.setFont('helvetica','bold');
-      doc.text(text,margin+3,yPos+3);
-      return yPos+13;
+    // Measure wrapped text height
+    function textHeight(text,maxW,size){
+      doc.setFontSize(size||9);
+      return doc.splitTextToSize(clean(text),maxW).length*(size||9)*0.38;
     }
 
-    // ── HEADER ──
+    // Draw a filled+stroked rounded box, return nothing
+    function box(x,yPos,w,h,r,fill,stroke){
+      doc.setFillColor(...fill);
+      if(stroke){doc.setDrawColor(...stroke);doc.roundedRect(x,yPos,w,h,r||2,r||2,'FD');}
+      else{doc.roundedRect(x,yPos,w,h,r||2,r||2,'F');}
+    }
+
+    // Write wrapped text, return new y
+    function writeText(text,x,yPos,maxW,size,colour,bold){
+      doc.setFontSize(size||9);
+      doc.setTextColor(...(colour||grey));
+      doc.setFont('helvetica',bold?'bold':'normal');
+      const lines=doc.splitTextToSize(clean(text),maxW);
+      const lh=(size||9)*0.38;
+      lines.forEach(line=>{
+        if(yPos>283){doc.addPage();yPos=margin;}
+        doc.text(line,x,yPos);
+        yPos+=lh;
+      });
+      return yPos;
+    }
+
+    function sectionHeading(label,yPos,colour){
+      yPos=checkPage(yPos,14);
+      doc.setFillColor(...(colour||navy));
+      doc.rect(margin,yPos,contentW,8,'F');
+      // left accent bar
+      doc.setFillColor(255,255,255,0.3);
+      doc.rect(margin,yPos,3,8,'F');
+      doc.setFontSize(10);doc.setTextColor(255,255,255);
+      doc.setFont('helvetica','bold');
+      doc.text(label,margin+6,yPos+5.5);
+      return yPos+12;
+    }
+
+    // ── HEADER BANNER ────────────────────────────────────────
     doc.setFillColor(...green);
-    doc.rect(0,0,pageW,28,'F');
-    doc.setFontSize(18);doc.setTextColor(255,255,255);
-    doc.setFont('helvetica','bold');
-    doc.text('Project Summary — Felix',margin,12);
+    doc.rect(0,0,pageW,32,'F');
+    // Accent strip
+    doc.setFillColor(255,255,255,50);
+    doc.rect(0,28,pageW,4,'F');
+
+    doc.setFontSize(17);doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
+    doc.text('Project Summary',margin,11);
+
     doc.setFontSize(10);doc.setFont('helvetica','normal');
-    doc.text(inv.title,margin,19);
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})}`,margin,25);
-    y=36;
+    doc.text('Student: Felix',margin,18);
 
-    // ── META BOX ──
-    doc.setFillColor(...lightGrey);
-    doc.roundedRect(margin,y,contentW,22,3,3,'F');
+    doc.setFontSize(9);
+    const invTitle=clean(inv.title);
+    const titleLines=doc.splitTextToSize(invTitle,contentW-40);
+    titleLines.forEach((line,li)=>doc.text(line,margin,24+(li*4)));
+
+    doc.setFontSize(8);doc.setTextColor(200,235,215);
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})}`,
+      pageW-margin-52,10);
+    y=38;
+
+    // ── META BOX ─────────────────────────────────────────────
+    box(margin,y,contentW,20,3,lgrey,null);
     doc.setFontSize(9);doc.setTextColor(...grey);doc.setFont('helvetica','normal');
-    doc.text(`Category: ${inv.category}`,margin+4,y+6);
-    doc.text(`Steps completed: ${done} of ${inv.steps.length}`,margin+4,y+12);
-    doc.text(`Investigation: ${inv.title}`,margin+4,y+18);
-    y+=27;
 
-    // ── STEPS ──
-    y=sectionHeading('🪜 Steps & Progress',y);
+    // Left column
+    doc.setFont('helvetica','bold');doc.text('Investigation:',margin+4,y+6);
+    doc.setFont('helvetica','normal');
+    const metaTitleLines=doc.splitTextToSize(invTitle,contentW-60);
+    metaTitleLines.forEach((l,li)=>doc.text(l,margin+32,y+6+(li*4)));
+
+    doc.setFont('helvetica','bold');doc.text('Category:',margin+4,y+14);
+    doc.setFont('helvetica','normal');doc.text(cleanCategory(inv.category),margin+32,y+14);
+
+    // Right column
+    doc.setFont('helvetica','bold');doc.text('Steps completed:',pageW-margin-52,y+6);
+    doc.setFont('helvetica','normal');doc.text(`${done} of ${inv.steps.length}`,pageW-margin-52,y+12);
+
+    // Progress bar
+    const barX=pageW-margin-52;const barW=48;const barH=3;const barY=y+15;
+    doc.setFillColor(210,210,210);doc.rect(barX,barY,barW,barH,'F');
+    if(inv.steps.length>0){
+      doc.setFillColor(...doneStr);
+      doc.rect(barX,barY,barW*(done/inv.steps.length),barH,'F');
+    }
+    y+=25;
+
+    // ── STEPS ────────────────────────────────────────────────
+    y=sectionHeading('Steps & Progress',y,navy);
 
     inv.steps.forEach((s,i)=>{
-      y=checkPage(y,24);
-      const isDone=ticks[i];
-      const sc=comments[i]||[];
-      const boxH=18+(sc.length*10);
-      doc.setFillColor(...(isDone?doneGreen:lightGrey));
-      doc.setDrawColor(...(isDone?[40,167,69]:[200,200,200]));
-      doc.roundedRect(margin,y,contentW,boxH,2,2,'FD');
+      const isDone=!!ticks[i];
+      const sc=(comments[i]||[]);
 
-      // Step number circle
-      doc.setFillColor(...(isDone?[40,167,69]:navy));
-      doc.circle(margin+6,y+6,4,'F');
+      // Calculate actual box height needed
+      const headH=textHeight(s.head,contentW-24,10);
+      const bodyH=textHeight(s.body,contentW-22,9);
+      let cmtH=0;
+      sc.forEach(c=>{
+        cmtH+=6; // meta line
+        cmtH+=textHeight(c.text,contentW-28,8);
+        cmtH+=4; // padding
+      });
+      const boxH=Math.max(16, headH+bodyH+cmtH+10);
+
+      y=checkPage(y,boxH+4);
+
+      // Step box
+      box(margin,y,contentW,boxH,2,
+        isDone?doneGrn:lgrey,
+        isDone?doneStr:[210,210,210]);
+
+      // Numbered circle
+      doc.setFillColor(...(isDone?doneStr:navy));
+      doc.circle(margin+6,y+7,4,'F');
       doc.setFontSize(9);doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
-      doc.text(String(i+1),margin+(i<9?4.5:3),y+8);
+      const numStr=String(i+1);
+      doc.text(numStr,margin+(numStr.length>1?3.5:4.8),y+9);
 
-      // Step head
+      // "Completed" badge (top right)
+      if(isDone){
+        doc.setFontSize(7.5);doc.setTextColor(...doneStr);doc.setFont('helvetica','bold');
+        doc.text('COMPLETED',pageW-margin-28,y+5);
+        // small tick mark
+        doc.setFontSize(8);doc.text('/',pageW-margin-32,y+5);
+      }
+
+      // Step heading
+      let stepY=y+6;
       doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
-      const headLines=doc.splitTextToSize(s.head,contentW-20);
-      doc.text(headLines,margin+13,y+6);
+      const hLines=doc.splitTextToSize(clean(s.head),contentW-26);
+      hLines.forEach(line=>{doc.text(line,margin+13,stepY);stepY+=4.5;});
+      stepY+=1;
 
       // Step body
       doc.setFontSize(9);doc.setTextColor(...grey);doc.setFont('helvetica','normal');
-      const bodyLines=doc.splitTextToSize(s.body,contentW-14);
-      let stepY=y+6+(headLines.length*5);
-      bodyLines.forEach(line=>{doc.text(line,margin+13,stepY);stepY+=4.5;});
-
-      if(isDone){
-        doc.setFontSize(8);doc.setTextColor(40,167,69);doc.setFont('helvetica','bold');
-        doc.text('✓ Completed',pageW-margin-24,y+6);
-      }
+      const bLines=doc.splitTextToSize(clean(s.body),contentW-18);
+      bLines.forEach(line=>{doc.text(line,margin+13,stepY);stepY+=4;});
+      stepY+=2;
 
       // Comments
       sc.forEach(c=>{
-        stepY+=2;
-        doc.setFillColor(...commentYellow);
-        const cLines=doc.splitTextToSize(c.text,contentW-22);
-        doc.roundedRect(margin+13,stepY-3,contentW-14,5+(cLines.length*4),1,1,'F');
-        doc.setFontSize(8);doc.setTextColor(100,80,0);doc.setFont('helvetica','bold');
-        doc.text(`${c.author} · ${c.date}`,margin+15,stepY+1);
-        doc.setFont('helvetica','normal');doc.setTextColor(60,50,0);
-        cLines.forEach(line=>{stepY+=4;doc.text(line,margin+15,stepY+1);});
+        const cText=clean(c.text);
+        const cLines=doc.splitTextToSize(cText,contentW-28);
+        const cBoxH=5+4+(cLines.length*4)+2;
+        box(margin+12,stepY,contentW-14,cBoxH,1,cmtBg,[210,185,80]);
+        doc.setFontSize(7.5);doc.setTextColor(...cmtBdr);doc.setFont('helvetica','bold');
+        doc.text(`${clean(c.author)}  |  ${clean(c.date)}`,margin+15,stepY+4);
+        stepY+=5;
+        doc.setFontSize(8.5);doc.setTextColor(60,50,10);doc.setFont('helvetica','normal');
+        cLines.forEach(line=>{doc.text(line,margin+15,stepY+3);stepY+=4;});
         stepY+=3;
       });
 
       y+=boxH+4;
     });
 
-    // ── CURRICULUM ──
+    // ── CURRICULUM LINKS ─────────────────────────────────────
     y=checkPage(y,20);
-    y=sectionHeading('📚 Curriculum Links',y);
+    y=sectionHeading('Curriculum Links',y,[40,53,147]);
     inv.curriculum.forEach(c=>{
       y=checkPage(y,8);
-      doc.setFillColor(232,234,246);
-      doc.roundedRect(margin,y,contentW,7,1,1,'F');
+      box(margin,y,contentW,7,1,[232,234,246],null);
       doc.setFontSize(9);doc.setTextColor(40,53,147);doc.setFont('helvetica','normal');
-      doc.text(`✓  ${c}`,margin+3,y+4.5);
+      doc.text('  '+clean(c),margin+6,y+5);
+      // tick
+      doc.setFont('helvetica','bold');doc.text('OK',margin+2,y+5);
       y+=9;
     });
-
-    // ── PROGRESS NOTES ──
-    if(notes.length>0){
-      y=checkPage(y,20);
-      y=sectionHeading('📝 Progress Notes',y);
-      notes.forEach(n=>{
-        y=checkPage(y,14);
-        const nLines=doc.splitTextToSize(n.text,contentW-10);
-        doc.setFillColor(...blueNote);
-        doc.roundedRect(margin,y,contentW,5+(nLines.length*4.5),1,1,'F');
-        doc.setFontSize(8);doc.setTextColor(29,53,87);doc.setFont('helvetica','bold');
-        doc.text(`${n.author} · ${n.date}`,margin+3,y+4);
-        doc.setFont('helvetica','normal');
-        nLines.forEach(line=>{y+=4.5;doc.text(line,margin+3,y+1);});
-        y+=7;
-      });
-    }
-
-    // ── PROJECT GOAL ──
-    y=checkPage(y,16);
-    y=sectionHeading('🎯 Project Goal',y);
-    y=addText(inv.finish.replace('📤 Share: ','Share: '),margin,y,{size:10,colour:grey});
     y+=2;
 
-    // ── ATTACHMENTS ── (links and image filenames — images can't embed easily in jsPDF without canvas)
-    if(attachments.length>0){
+    // ── PROGRESS NOTES ───────────────────────────────────────
+    if(notes.length>0){
       y=checkPage(y,20);
-      y=sectionHeading("📎 Felix's Work",y,[107,30,60]);
-      attachments.forEach(att=>{
-        y=checkPage(y,12);
-        const isYT=att.url&&(att.url.includes('youtube')||att.url.includes('youtu.be'));
-        if(att.type==='link'||att.type==='video'){
-          doc.setFillColor(245,238,248);
-          doc.roundedRect(margin,y,contentW,9,1,1,'F');
-          doc.setFontSize(9);doc.setTextColor(108,52,131);doc.setFont('helvetica','bold');
-          doc.text(isYT?'▶ Video:':'🔗 Link:',margin+3,y+6);
-          doc.setFont('helvetica','normal');doc.setTextColor(29,53,87);
-          doc.textWithLink(att.label,margin+22,y+6,{url:att.url});
-          y+=11;
-        }else if(att.type==='pdf'){
-          doc.setFillColor(253,236,234);
-          doc.roundedRect(margin,y,contentW,9,1,1,'F');
-          doc.setFontSize(9);doc.setTextColor(192,57,43);doc.setFont('helvetica','bold');
-          doc.text('📄 PDF:',margin+3,y+6);
-          doc.setFont('helvetica','normal');doc.setTextColor(...grey);
-          doc.text(att.label,margin+22,y+6);
-          y+=11;
-        }else{
-          // For images: show label and note (base64 images are large — skip embedding)
-          doc.setFillColor(232,244,253);
-          doc.roundedRect(margin,y,contentW,9,1,1,'F');
-          doc.setFontSize(9);doc.setTextColor(29,53,87);doc.setFont('helvetica','bold');
-          doc.text('🖼 Image:',margin+3,y+6);
-          doc.setFont('helvetica','normal');doc.setTextColor(...grey);
-          doc.text(att.label,margin+22,y+6);
-          y+=11;
-        }
+      y=sectionHeading('Progress Notes',y,[29,80,120]);
+      notes.forEach(n=>{
+        y=checkPage(y,16);
+        const nLines=doc.splitTextToSize(clean(n.text),contentW-10);
+        const nH=6+4+(nLines.length*4)+3;
+        box(margin,y,contentW,nH,2,noteBg,[180,210,240]);
+        doc.setFontSize(8);doc.setTextColor(29,53,87);doc.setFont('helvetica','bold');
+        doc.text(`${clean(n.author)}  |  ${clean(n.date)}`,margin+4,y+5);
+        doc.setFont('helvetica','normal');doc.setTextColor(...navy);
+        let ny=y+9;
+        nLines.forEach(line=>{doc.text(line,margin+4,ny);ny+=4;});
+        y+=nH+4;
       });
     }
 
-    // ── FOOTER ──
+    // ── PROJECT GOAL ─────────────────────────────────────────
+    y=checkPage(y,18);
+    y=sectionHeading('Project Goal',y,green);
+    const goalText=clean(inv.finish).replace(/^Share:\s*/i,'Share: ');
+    const goalLines=doc.splitTextToSize(goalText,contentW-6);
+    doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+    goalLines.forEach(line=>{
+      if(y>282){doc.addPage();y=margin;}
+      doc.text(line,margin+4,y);y+=5;
+    });
+    y+=4;
+
+    // ── FELIX'S WORK (ATTACHMENTS) ───────────────────────────
+    if(attachments.length>0){
+      y=checkPage(y,20);
+      y=sectionHeading("Felix's Work",y,purp);
+      attachments.forEach(att=>{
+        y=checkPage(y,13);
+        const isYT=att.url&&(att.url.includes('youtube')||att.url.includes('youtu.be'));
+        let typeLabel,bgColour,txtColour;
+
+        if(att.type==='video'||isYT){
+          typeLabel='VIDEO';bgColour=[245,238,255];txtColour=purp;
+        }else if(att.type==='link'){
+          typeLabel='LINK';bgColour=[235,248,245];txtColour=[27,94,79];
+        }else if(att.type==='pdf'){
+          typeLabel='PDF';bgColour=[253,236,234];txtColour=[192,57,43];
+        }else{
+          typeLabel='IMAGE';bgColour=[232,244,253];txtColour=navy;
+        }
+
+        box(margin,y,contentW,11,2,bgColour,null);
+
+        // Type badge
+        doc.setFillColor(...txtColour);
+        doc.roundedRect(margin+3,y+2,14,7,1,1,'F');
+        doc.setFontSize(7);doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
+        doc.text(typeLabel,margin+4.5,y+6.8);
+
+        // Label
+        doc.setFontSize(9);doc.setTextColor(...txtColour);doc.setFont('helvetica','bold');
+        doc.text(clean(att.label),margin+20,y+6.5);
+
+        // URL as clickable link if available
+        if(att.url){
+          const shortUrl=att.url.length>60?att.url.substring(0,57)+'...':att.url;
+          doc.setFontSize(7.5);doc.setTextColor(100,100,200);doc.setFont('helvetica','normal');
+          doc.textWithLink(shortUrl,margin+20,y+10.5,{url:att.url});
+        }else{
+          // For PDF/image attachments: note that file is in the HTML version
+          doc.setFontSize(7.5);doc.setTextColor(150,150,150);doc.setFont('helvetica','normal');
+          doc.text('File attached — see HTML version to view',margin+20,y+10.5);
+        }
+
+        y+=13;
+      });
+    }
+
+    // ── FOOTER on every page ─────────────────────────────────
     const pageCount=doc.internal.getNumberOfPages();
     for(let p=1;p<=pageCount;p++){
       doc.setPage(p);
-      doc.setFontSize(8);doc.setTextColor(180,180,180);doc.setFont('helvetica','normal');
-      doc.text(`Felix's Investigation Station  ·  Page ${p} of ${pageCount}`,margin,292);
-      doc.text(new Date().toLocaleDateString('en-AU'),pageW-margin-20,292);
+      doc.setFillColor(245,245,245);
+      doc.rect(0,288,pageW,10,'F');
+      doc.setFontSize(7.5);doc.setTextColor(160,160,160);doc.setFont('helvetica','normal');
+      doc.text("Felix's Investigation Station",margin,294);
+      doc.text(`Page ${p} of ${pageCount}`,pageW/2-8,294);
+      doc.text(new Date().toLocaleDateString('en-AU'),pageW-margin-18,294);
     }
 
-    doc.save(`Felix_${inv.title.replace(/[^a-zA-Z0-9]/g,'_')}_Summary.pdf`);
+    doc.save(`Felix_${clean(inv.title).replace(/\s+/g,'_')}_Summary.pdf`);
 
   }catch(err){
     console.error('PDF generation failed:',err);
-    alert('PDF generation failed. Try the HTML download instead, or use File → Print → Save as PDF in your browser.');
+    alert('PDF generation failed. Please use the HTML download instead and choose File > Print > Save as PDF in your browser.');
   }finally{
-    if(btn){btn.textContent='📄 Download as PDF';btn.disabled=false;}
+    if(btn){btn.textContent='Download as PDF';btn.disabled=false;
+      setTimeout(()=>{btn.textContent='📄 Download as PDF';},100);}
   }
 }
 
